@@ -1,19 +1,15 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var network = NetworkManager.shared
-    @State private var status: String = "Tap to ping the server"
+    @State private var status = "Not connected"
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             Text("CEA")
                 .font(.largeTitle.bold())
-
             Text(status)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button("Ping Backend") {
+            Button("Connect to Backend") {
                 Task { await ping() }
             }
             .buttonStyle(.borderedProminent)
@@ -22,10 +18,12 @@ struct ContentView: View {
     }
 
     private func ping() async {
-        status = "Pinging…"
+        status = "Connecting…"
         do {
-            let ok = try await network.ping()
-            status = ok ? "Connected" : "Unexpected response"
+            let url = URL(string: "http://localhost:8000/ping")!
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let body = try JSONDecoder().decode([String: String].self, from: data)
+            status = body["status"] == "ok" ? "Connected" : "Unexpected response"
         } catch {
             status = "Error: \(error.localizedDescription)"
         }
