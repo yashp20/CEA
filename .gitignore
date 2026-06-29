@@ -1,0 +1,50 @@
+# ─── Python / FastAPI ───────────────────────────────────────────────
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/.env
+backend/*.egg-info/
+backend/dist/
+backend/build/
+
+# ─── Xcode / iOS ────────────────────────────────────────────────────
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/**/*.xccheckout
+ios/**/*.moved-aside
+ios/**/*.hmap
+ios/**/*.ipa
+ios/**/*.dSYM.zip
+ios/**/*.dSYM
+ios/Pods/
+ios/Podfile.lock
+
+# ─── Xcode user-specific ────────────────────────────────────────────
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# ─── CocoaPods (if added later) ─────────────────────────────────────
+Pods/
+
+# ─── Swift Package Manager ──────────────────────────────────────────
+.build/
+.swiftpm/
+
+# ─── macOS ──────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+._*
+
+# ─── Secrets ────────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+*.p12
+*.mobileprovision
+AuthKey_*.p8
