@@ -9,12 +9,18 @@
 /* Begin PBXBuildFile section */
 		AA0000000000000000000001 /* CEAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* CEAApp.swift */; };
 		AA0000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000012 /* ContentView.swift */; };
+		AA0000000000000000000004 /* MapsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000014 /* MapsView.swift */; };
+		AA0000000000000000000005 /* CEAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000015 /* CEAView.swift */; };
+		AA0000000000000000000006 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000016 /* ProfileView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		AA0000000000000000000010 /* CEA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CEA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000011 /* CEAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CEAApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000014 /* MapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapsView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000015 /* CEAView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CEAView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000016 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,11 +42,22 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		AA0000000000000000000034 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000014 /* MapsView.swift */,
+				AA0000000000000000000015 /* CEAView.swift */,
+				AA0000000000000000000016 /* ProfileView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		AA0000000000000000000031 /* CEA */ = {
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000011 /* CEAApp.swift */,
 				AA0000000000000000000012 /* ContentView.swift */,
+				AA0000000000000000000034 /* Views */,
 			);
 			path = CEA;
 			sourceTree = "<group>";
@@ -123,6 +140,9 @@
 			files = (
 				AA0000000000000000000001 /* CEAApp.swift in Sources */,
 				AA0000000000000000000002 /* ContentView.swift in Sources */,
+				AA0000000000000000000004 /* MapsView.swift in Sources */,
+				AA0000000000000000000005 /* CEAView.swift in Sources */,
+				AA0000000000000000000006 /* ProfileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,6 +244,7 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
 	};
 	rootObject = AA0000000000000000000050 /* Project object */;
 }
