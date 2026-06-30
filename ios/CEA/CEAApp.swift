@@ -5,6 +5,7 @@ struct CEAApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+           
         }
     }
 }
