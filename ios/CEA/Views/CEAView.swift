@@ -8,7 +8,7 @@ struct Message: Identifiable {
 
 struct CEAView: View {
     @State private var messages: [Message] = [
-        Message(text: "Hi! I'm CEA. How can I help you today?", isUser: false)
+        Message(text: "Hi! I'm CEA. How can I assist you today?", isUser: false)
     ]
     @State private var input = ""
 
@@ -61,7 +61,7 @@ struct CEAView: View {
 
         // Placeholder response — replace with backend call when API key is ready
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            messages.append(Message(text: "Got it! AI responses coming soon.", isUser: false))
+            messages.append(Message(text: "CEA", isUser: false))
         }
     }
 }

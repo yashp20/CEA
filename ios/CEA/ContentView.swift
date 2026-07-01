@@ -3,10 +3,10 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         TabView {
-            MapsView()
-                .tabItem {
-                    Label("Maps", systemImage: "map.fill")
-                }
+//            MapsView()
+//                .tabItem {
+//                    Label("Maps", systemImage: "map.fill")
+//                }
 
             CEAView()
                 .tabItem {

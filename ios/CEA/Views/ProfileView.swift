@@ -85,7 +85,6 @@ struct ProfileView: View {
                     Toggle(isOn: $allergyDairy) { label("Dairy", "drop.fill", .red) }
                     Toggle(isOn: $allergyNuts) { label("Nuts", "leaf.fill", .red) }
                     Toggle(isOn: $allergyGluten) { label("Gluten", "fork.knife", .red) }
-                    Toggle(isOn: $allergyShellfish) { label("Shellfish", "fish.fill", .red) }
                 } header: {
                     Text("Dietary & Allergies")
                 } footer: {
