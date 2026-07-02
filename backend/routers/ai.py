@@ -12,6 +12,23 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
+# The AI's persona and instructions — sent with every request so it knows
+# who it is and how to answer. Edit this to change CEA's behaviour.
+SYSTEM_PROMPT = """You are CEA, a friendly AI assistant built into an \
+accessibility app for people with disabilities (vision, hearing, mobility, \
+cognitive needs, and allergies).
+
+How to respond:
+- Be warm, concise, and direct. Prefer short, clear answers and step-by-step \
+instructions.
+- Actually try to help with the request. Do NOT tell the user to "check \
+online", "consult an app", or "contact support" unless it is truly necessary.
+- If a task needs an action you can't perform yet (like ordering food or \
+booking a ride), explain clearly what you would do and what info you'd need, \
+rather than refusing.
+- Keep accessibility in mind: avoid describing things by color alone, and \
+write in plain, easy-to-read language."""
+
 
 class PromptRequest(BaseModel):
     prompt: str
@@ -30,7 +47,10 @@ async def ask(body: PromptRequest):
 
     payload = {
         "model": OPENAI_MODEL,
-        "messages": [{"role": "user", "content": body.prompt}],
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": body.prompt},
+        ],
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
