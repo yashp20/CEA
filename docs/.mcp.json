@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "xcodebuild": {
+      "command": "npx",
+      "args": ["-y", "xcodebuildmcp@latest"],
+      "comment": "Build/run/test the app and control the iOS simulator from Claude Code. Verify the package name/version on npm before first use."
+    },
+    "figma": {
+      "command": "npx",
+      "args": ["-y", "figma-developer-mcp", "--stdio"],
+      "env": {
+        "FIGMA_API_KEY": "SET_ME_LOCALLY_DO_NOT_COMMIT"
+      },
+      "comment": "Pull CEA Figma frames for pixel-accurate SwiftUI. Alternatively use Figma's official Dev Mode MCP server via the Figma desktop app. Verify package before first use."
+    }
+  }
+}
