@@ -1,4 +1,4 @@
-# CLAUDE.md — CEA (Connecting with Everything, Everywhere)
+# CLAUDE.md — CEA (Connecting with Everything, Anywhere)
 
 Claude Code: read this fully before making changes. PRD.md is the product source of truth; this file is the engineering source of truth. If a request conflicts with the Non-negotiables below, flag it instead of implementing it.
 
