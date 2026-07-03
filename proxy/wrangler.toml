@@ -1,0 +1,8 @@
+name = "cea-proxy"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# Secrets (never in this file):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+# Local dev: put ANTHROPIC_API_KEY in proxy/.dev.vars (gitignored), then
+#   npx wrangler dev
