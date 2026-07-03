@@ -47,6 +47,8 @@ struct GooglePlacesService: PlacesSearching {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        // Required when the key is restricted to this iOS app in Google Cloud.
+        request.setValue(Bundle.main.bundleIdentifier ?? "com.cea.app", forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         request.setValue(
             "places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.currentOpeningHours.openNow,places.accessibilityOptions,places.nationalPhoneNumber,places.websiteUri,places.priceLevel",
             forHTTPHeaderField: "X-Goog-FieldMask"

@@ -113,6 +113,25 @@ final class DeepLinkRegistryTests: XCTestCase {
         XCTAssertTrue(link.detail.contains("search"))
     }
 
+    func testDoorDashDemoSetNameMatching() {
+        // Exact and messy real-world forms from Places results.
+        XCTAssertEqual(DeepLinkRegistry.doordashSlug(matching: "Lou Malnati's Pizzeria - Chicago"), "lou-malnatis-pizzeria-chicago-12431")
+        XCTAssertEqual(DeepLinkRegistry.doordashSlug(matching: "Portillo's Hot Dogs"), "portillo-s-chicago-50831")
+        XCTAssertEqual(DeepLinkRegistry.doordashSlug(matching: "India House Restaurant Chicago"), "india-house-chicago-11625")
+        XCTAssertEqual(DeepLinkRegistry.doordashSlug(matching: "Wildberry Pancakes & Cafe"), "wildberry-pancakes-&-cafe-chicago-445161")
+        XCTAssertEqual(DeepLinkRegistry.doordashSlug(matching: "STAR OF SIAM"), "star-of-siam-chicago-11627")
+        // Unknown venues get no slug → search-page fallback, never invented.
+        XCTAssertNil(DeepLinkRegistry.doordashSlug(matching: "Some Unknown Bistro"))
+        XCTAssertNil(DeepLinkRegistry.doordashSlug(matching: ""))
+        XCTAssertNil(DeepLinkRegistry.doordashSlug(matching: "abc"))
+    }
+
+    func testDoorDashDemoStoreLinkUsesResolvedSlug() {
+        let slug = DeepLinkRegistry.doordashSlug(matching: "Star of Siam")
+        let link = DeepLinkRegistry.doordashStoreLink(storeSlugAndID: slug, restaurantName: "Star of Siam")
+        XCTAssertEqual(link.webURL.absoluteString, "https://www.doordash.com/store/star-of-siam-chicago-11627")
+    }
+
     // MARK: Fallbacks
 
     func testAppleMapsDirectionsIsWalking() {

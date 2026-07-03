@@ -208,11 +208,12 @@ final class AgentToolbox {
             ])
         case "food":
             let name = input["restaurant_name"]?.stringValue ?? "the restaurant"
-            // TODO(cea): wire DoorDash store slug resolution for the demo set —
-            // resolve "<slug>-<id>" per venue (name match + web search at
-            // registry-demo-set build time) and pass it here. Until then the
-            // link honestly opens a DoorDash search for the venue name.
-            let doordash = DeepLinkRegistry.doordashStoreLink(storeSlugAndID: nil, restaurantName: name)
+            // Store slugs come from the registry demo set (Chicago); venues
+            // outside it honestly get a DoorDash search link instead.
+            let doordash = DeepLinkRegistry.doordashStoreLink(
+                storeSlugAndID: DeepLinkRegistry.doordashSlug(matching: name),
+                restaurantName: name
+            )
             var payload: [String: JSONValue] = [
                 "doordash": .object([
                     "url": .string(doordash.webURL.absoluteString),

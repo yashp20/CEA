@@ -147,6 +147,37 @@ enum DeepLinkRegistry {
 
     // MARK: Food (Vertical B)
 
+    /// Chicago demo set: DoorDash store slugs resolved by name match + web
+    /// search at registry-demo-set build time (CLAUDE.md integrations).
+    /// TODO(cea): extend/replace when the demo city or venue list changes.
+    static let doordashDemoStores: [String: String] = [
+        "lou malnatis pizzeria": "lou-malnatis-pizzeria-chicago-12431",   // 805 S State St
+        "portillos": "portillo-s-chicago-50831",                          // 520 W Taylor St
+        "india house": "india-house-chicago-11625",                       // 59 W Grand Ave
+        "wildberry pancakes cafe": "wildberry-pancakes-&-cafe-chicago-445161", // 130 E Randolph St
+        "star of siam": "star-of-siam-chicago-11627",                     // 11 E Illinois St
+    ]
+
+    /// Slug for a venue name from the demo set, or nil → search-page fallback.
+    static func doordashSlug(matching name: String) -> String? {
+        let normalized = normalize(name)
+        guard normalized.count >= 4 else { return nil }
+        for (key, slug) in doordashDemoStores {
+            if normalized.contains(key) || key.contains(normalized) {
+                return slug
+            }
+        }
+        return nil
+    }
+
+    /// Lowercased, punctuation/diacritics removed (so "Portillo's" →
+    /// "portillos"), whitespace collapsed.
+    private static func normalize(_ name: String) -> String {
+        let folded = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "en_US"))
+        let kept = folded.filter { $0.isLetter || $0.isNumber || $0.isWhitespace }
+        return kept.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
     /// DoorDash store page (right_page tier): opens the store page in the app
     /// via universal link. NO item/cart prefill — that requires signed
     /// merchant deeplinks we don't have. When no store slug/ID is resolvable,
