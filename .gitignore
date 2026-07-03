@@ -52,3 +52,4 @@ AuthKey_*.p8
 # ─── CEA secrets ────────────────────────────────────────────────────
 ios/Secrets.xcconfig
 proxy/.dev.vars
+proxy/.wrangler/
