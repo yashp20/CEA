@@ -15,6 +15,13 @@
 	<string>The microphone lets you speak to CEA instead of typing.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Speech recognition turns what you say into a message for CEA.</string>
+	<!-- Local networking only (for the localhost dev proxy); all real traffic
+	     stays HTTPS. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<!-- Values come from Config.xcconfig / Secrets.xcconfig (not committed). -->
 	<key>CEAProxyURL</key>
 	<string>$(CEA_PROXY_URL)</string>
