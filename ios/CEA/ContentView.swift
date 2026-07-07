@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// App shell: onboarding gate, then the CEA / Profile tab bar (per the CEA
-/// Figma frames). Profile-adaptive settings apply here so they take effect
-/// app-wide instantly; system settings win when stricter (they compose on
-/// top of these).
+/// App shell: onboarding gate, then the chat-first home (v1.1 §2 — no tab
+/// bar; sidebar holds history, Profile lives top-right). Profile-adaptive
+/// settings apply here so they take effect app-wide instantly; system
+/// settings win when stricter (they compose on top of these).
 struct ContentView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -13,12 +13,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if profile.onboardingCompleted {
-                TabView {
-                    ChatsListView()
-                        .tabItem { Label("CEA", systemImage: "circle.hexagongrid.fill") }
-                    ProfileView()
-                        .tabItem { Label("Profile", systemImage: "person.fill") }
-                }
+                HomeView()
             } else {
                 OnboardingView()
             }

@@ -5,13 +5,15 @@ import SwiftUI
 /// app-wide instantly (the profile model is observable). System settings
 /// (Dynamic Type, Reduce Motion, Increase Contrast, VoiceOver) always win
 /// when stricter. Also hosts the visible, deletable memory ledger (F3).
+/// v1.1 §2: pushed from home's top-right entry point (no more tab bar), so
+/// it renders inside the parent NavigationStack.
 struct ProfileView: View {
     @Environment(ProfileStore.self) private var profileStore
 
     var body: some View {
         @Bindable var profile = profileStore.profile
 
-        NavigationStack {
+        Group {
             List {
                 Section {
                     HStack(spacing: 14) {
@@ -105,6 +107,9 @@ struct ProfileView: View {
             .onChange(of: profileSnapshot) { profileStore.save() }
         }
     }
+
+    // (List body lives inside Group above so this view composes into the
+    // parent NavigationStack pushed from home.)
 
     /// Trigger a save whenever any setting changes.
     private var profileSnapshot: [String] {

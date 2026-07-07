@@ -6,6 +6,8 @@ import UIKit
 /// agent runs the client-side tool loop and streams events back.
 struct ChatView: View {
     @Bindable var session: ChatSession
+    /// Home shows floating shortcut widgets on the empty state (§2).
+    var showsShortcuts = false
     @Environment(ProfileStore.self) private var profileStore
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -34,7 +36,7 @@ struct ChatView: View {
                                 message: message,
                                 profile: profile,
                                 reduceMotion: reduceMotion,
-                                onOpenURL: { openURL($0) }
+                                onOpenURL: { open($0) }
                             )
                             .id(message.persistentModelID)
                             .transition(Motion.insertion(reduceMotion: reduceMotion))
@@ -74,11 +76,15 @@ struct ChatView: View {
             )
         }
         .background(Theme.screenBackground)
-        .navigationTitle(session.title)
-        .navigationBarTitleDisplayMode(.inline)
         // §1 bug 4: TTS is scoped to the visible chat — leaving the screen
         // stops speech immediately instead of reading into the next screen.
         .onDisappear { SpeechService.shared.stop() }
+    }
+
+    /// Opens a hand-off URL and counts it toward shortcut personalization.
+    private func open(_ url: URL) {
+        ShortcutUsageTracker.recordHandoff(url: url, in: context)
+        openURL(url)
     }
 
     private var emptyState: some View {
@@ -95,10 +101,18 @@ struct ChatView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            if showsShortcuts {
+                ShortcutStrip(
+                    profile: profile,
+                    reduceMotion: reduceMotion,
+                    onSeed: { input = $0 }
+                )
+                .padding(.top, 20)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60)
-        .accessibilityElement(children: .combine)
+        .padding(.top, 40)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Sending

@@ -9,7 +9,8 @@ struct CEAApp: App {
     init() {
         do {
             let container = try ModelContainer(
-                for: AccessibilityProfile.self, PreferenceMemory.self, ChatSession.self, ChatMessage.self
+                for: AccessibilityProfile.self, PreferenceMemory.self, ChatSession.self, ChatMessage.self,
+                ShortcutUsage.self
             )
             self.container = container
             self._profileStore = State(initialValue: ProfileStore(context: container.mainContext))
