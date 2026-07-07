@@ -15,6 +15,7 @@ struct HomeView: View {
 
     @State private var activeSession: ChatSession?
     @State private var sidebarOpen = false
+    @State private var focusMode = false
 
     private var profile: AccessibilityProfile { profileStore.profile }
     private var reduceMotion: Bool {
@@ -74,6 +75,18 @@ struct HomeView: View {
                     .accessibilityLabel("New chat")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    // §3.4: one tap collapses everything to the next step.
+                    Button {
+                        Haptics.shared.play(.tap, enabled: profile.hapticsEnabled)
+                        focusMode = true
+                    } label: {
+                        Image(systemName: "rectangle.compress.vertical")
+                    }
+                    .disabled(activeSession == nil)
+                    .accessibilityLabel("Focus mode")
+                    .accessibilityHint("Shows just the next step, one button, big text.")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     // Small, transparent profile entry point (§2): icon only,
                     // no background — unobtrusive but 44pt and labeled.
                     NavigationLink {
@@ -85,6 +98,11 @@ struct HomeView: View {
                     }
                     .accessibilityLabel("Profile and settings")
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $focusMode) {
+            if let session = activeSession {
+                FocusModeView(session: session, onExit: { focusMode = false })
             }
         }
         .onAppear { ensureFreshSession() }
