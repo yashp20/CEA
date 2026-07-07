@@ -39,7 +39,7 @@ struct MessageRow: View {
                     .accessibilityLabel("CEA: \(message.text)")
                 }
                 if let card = message.card {
-                    CardView(card: card, profile: profile, reduceMotion: reduceMotion, onOpenURL: onOpenURL)
+                    CardView(card: card, profile: profile, reduceMotion: reduceMotion, onOpenURL: onOpenURL, message: message)
                 }
             }
 

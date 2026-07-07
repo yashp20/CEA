@@ -27,5 +27,7 @@
 	<string>$(CEA_PROXY_URL)</string>
 	<key>CEAPlacesAPIKey</key>
 	<string>$(CEA_PLACES_API_KEY)</string>
+	<key>CEAZapierMCPURL</key>
+	<string>$(CEA_ZAPIER_MCP_URL)</string>
 </dict>
 </plist>

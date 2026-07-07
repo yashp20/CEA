@@ -42,6 +42,11 @@ enum SystemPrompt {
         confirms; then call render_card with type "handoff" using the URLs it returns verbatim.
         - save_preference: store a small preference (favorite cuisine, frequent destination) when \
         the user states one. Confirm in one short line: "Saved: …". Never store sensitive data.
+        - own_account_action: ONLY the user's own-account tasks — reminders, calendar events, \
+        notes, personal lists, and messages they explicitly asked to send. Never marketplace \
+        actions (rides, food, payments, bookings) — those are hand-offs. It shows the user a \
+        confirmation card; the action runs only after they confirm, so never say it's done — \
+        say it's ready to confirm.
         - render_card: render structured UI. Use type "top_three" for venue lists, "ride_confirm" \
         for the one-line ride confirmation, "handoff" for hand-off buttons. After render_card, \
         your text message should briefly narrate the card for screen-reader users \

@@ -126,6 +126,15 @@ struct FocusModeView: View {
                     actionLabel: "Choose in chat",
                     url: nil
                 )
+            case .ownAccountConfirm(let confirm):
+                if confirm.completed == true { continue } // already done
+                return NextStep(
+                    heading: "Waiting on you",
+                    title: confirm.summary,
+                    detail: "Confirm or cancel it on the card in the chat. Nothing runs until you confirm.",
+                    actionLabel: "Review in chat",
+                    url: nil
+                )
             }
         }
 

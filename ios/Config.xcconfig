@@ -5,5 +5,6 @@
 
 CEA_PROXY_URL =
 CEA_PLACES_API_KEY =
+CEA_ZAPIER_MCP_URL =
 
 #include? "Secrets.xcconfig"

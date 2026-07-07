@@ -9,6 +9,9 @@ struct CardView: View {
     let profile: AccessibilityProfile
     var reduceMotion: Bool
     var onOpenURL: (URL) -> Void
+    /// The persisted message backing this card (used by cards that update
+    /// their own state, e.g. own-account confirmation completion).
+    var message: ChatMessage?
 
     var body: some View {
         switch card {
@@ -18,6 +21,125 @@ struct CardView: View {
             RideConfirmCardView(card: card, profile: profile)
         case .handoff(let card):
             HandoffCardView(card: card, profile: profile, reduceMotion: reduceMotion, onOpenURL: onOpenURL)
+        case .ownAccountConfirm(let card):
+            OwnAccountConfirmCardView(card: card, message: message, profile: profile, reduceMotion: reduceMotion)
+        }
+    }
+}
+
+// MARK: Own-account confirmation (v1.1 §4)
+
+/// Confirm-before-side-effect: shows exactly what will happen; the Zapier
+/// call fires only on Confirm. Completion persists onto the message so a
+/// confirmed action can never re-run.
+struct OwnAccountConfirmCardView: View {
+    let card: OwnAccountConfirmCard
+    let message: ChatMessage?
+    let profile: AccessibilityProfile
+    var reduceMotion: Bool
+
+    @Environment(\.modelContext) private var context
+    @State private var running = false
+    @State private var resultLine: String?
+    @State private var errorLine: String?
+    @State private var cancelled = false
+    @State private var flash = false
+
+    private var completed: Bool { card.completed == true || resultLine != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing) {
+            Label("Check before I do it", systemImage: "hand.raised")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(card.summary)
+                .font(.body.weight(.medium))
+
+            Text("Runs through your own connected account (Zapier). Nothing happens until you confirm.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if completed {
+                Label(resultLine ?? "Done — confirmed earlier.", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.positive(for: profile.colorBlindType, highContrast: profile.highContrast))
+            } else if cancelled {
+                Label("Cancelled. Nothing was sent or created.", systemImage: "xmark.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if let errorLine {
+                Label(errorLine, systemImage: "exclamationmark.triangle")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.caution(for: profile.colorBlindType, highContrast: profile.highContrast))
+            }
+
+            if !completed && !cancelled {
+                HStack(spacing: Theme.spacing) {
+                    Button {
+                        cancelled = true
+                        Haptics.shared.play(.tap, enabled: profile.hapticsEnabled)
+                    } label: {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .frame(minHeight: Theme.minTapTarget)
+                    }
+                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+                    .foregroundStyle(.primary)
+                    .accessibilityHint("Nothing will be sent or created.")
+
+                    Button(action: confirm) {
+                        HStack {
+                            if running { ProgressView().tint(.white) }
+                            Text(running ? "Working…" : "Confirm")
+                        }
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .frame(minHeight: Theme.minTapTarget)
+                    }
+                    .disabled(running)
+                    .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+                    .foregroundStyle(.white)
+                    .accessibilityHint("Runs the action through your Zapier account.")
+                }
+            }
+        }
+        .ceaCard(highContrast: profile.highContrast)
+        .visualFlash(trigger: $flash, reduceMotion: reduceMotion)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func confirm() {
+        running = true
+        errorLine = nil
+        Task { @MainActor in
+            defer { running = false }
+            do {
+                let result = try await ZapierMCPService.shared.callTool(
+                    name: card.toolName ?? "",
+                    argumentsJSON: card.argumentsJSON
+                )
+                resultLine = "Done. \(result)"
+                Haptics.shared.play(.confirmed, enabled: profile.hapticsEnabled)
+                flash = true
+                persistCompletion()
+            } catch {
+                errorLine = error.localizedDescription
+                Haptics.shared.play(.headsUp, enabled: profile.hapticsEnabled)
+            }
+        }
+    }
+
+    /// Marks the persisted card completed so relaunches can't re-run it.
+    private func persistCompletion() {
+        guard let message else { return }
+        var updated = card
+        updated.completed = true
+        if let data = try? JSONEncoder().encode(CardPayload.ownAccountConfirm(updated)) {
+            message.cardJSON = String(data: data, encoding: .utf8)
+            try? context.save()
         }
     }
 }

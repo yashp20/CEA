@@ -89,6 +89,23 @@ final class AgentToolbox {
                 )
             ),
             ToolDefinition(
+                name: "own_account_action",
+                description: "Own-account tasks ONLY, through the user's connected Zapier: create a reminder or calendar event, save a note, add to a personal list, or send a message the user explicitly asked to send. NEVER rides, food, payments, orders, bookings, or anything on a marketplace — those use build_handoff_link. Call without tool_name first to discover the available tools. Every action shows a confirmation card and runs only after the user taps Confirm; never claim it happened.",
+                inputSchema: schema(
+                    properties: [
+                        "kind": propEnum("Type of own-account task.", values: ["message", "reminder", "calendar_event", "note", "list_item"]),
+                        "summary": prop("string", "One plain sentence describing exactly what will happen, e.g. 'Text Maya: on my way, ETA 15 minutes.'"),
+                        "tool_name": prop("string", "The Zapier MCP tool to run. Omit on the first call to get the tool list."),
+                        "arguments": .object([
+                            "type": .string("object"),
+                            "description": .string("Arguments matching the chosen tool's input schema."),
+                        ]),
+                    ],
+                    required: ["kind"],
+                    additionalProperties: true
+                )
+            ),
+            ToolDefinition(
                 name: "render_card",
                 description: "Render a structured card in the chat UI. type is one of: top_three (venue list, fields: title, options[{name, summary, rating, distance_text, open_now, wheelchair_accessible, address, phone, website, latitude, longitude}]), ride_confirm (fields: summary, pickup_name, destination_name, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, note), handoff (fields: title, actions[{label, url, detail}], fallbacks[{label, url, detail}]). Options beyond 3 are dropped.",
                 inputSchema: schema(
@@ -115,6 +132,8 @@ final class AgentToolbox {
                 return (try await buildHandoffLink(input), false)
             case "save_preference":
                 return (savePreference(input, sink: sink), false)
+            case "own_account_action":
+                return await ownAccountAction(input, sink: sink)
             case "render_card":
                 return renderCard(input, sink: sink)
             default:
@@ -258,6 +277,50 @@ final class AgentToolbox {
         let confirmation = profileStore.savePreference(key: key.replacingOccurrences(of: " ", with: "_"), value: value)
         sink(.notice(confirmation))
         return "Preference stored and confirmation shown to the user: \(confirmation)"
+    }
+
+    // MARK: own_account_action (v1.1 §4)
+
+    /// Own-account tasks via the user's Zapier MCP server. Strictly scoped
+    /// (kind whitelist; marketplace stays on hand-off). The tool itself never
+    /// executes anything — it renders a confirmation card, and the side
+    /// effect runs only when the user taps Confirm in that card.
+    private func ownAccountAction(_ input: JSONValue, sink: (AgentEvent) -> Void) async -> (String, Bool) {
+        guard ZapierMCPService.isConfigured else {
+            // TODO(cea): wire Zapier MCP endpoint (CEA_ZAPIER_MCP_URL).
+            return ("Own-account actions aren't connected on this build. Tell the user honestly that reminders, calendar events, notes, and messages need the Zapier connection, which isn't set up yet.", false)
+        }
+        let allowedKinds = ["message", "reminder", "calendar_event", "note", "list_item"]
+        guard let kind = input["kind"]?.stringValue, allowedKinds.contains(kind) else {
+            return ("kind must be one of \(allowedKinds.joined(separator: ", ")). Rides, food, payments, and marketplace transactions are never own-account actions — use build_handoff_link.", true)
+        }
+        guard let toolName = input["tool_name"]?.stringValue, !toolName.isEmpty else {
+            // Discovery pass: real tool list from the user's server, never guessed.
+            do {
+                let tools = try await ZapierMCPService.shared.listTools()
+                guard !tools.isEmpty else {
+                    return ("The user's Zapier server exposes no tools yet. Say so honestly and suggest connecting apps at zapier.com.", false)
+                }
+                let listing = tools.map { "- \($0.name): \($0.description) (input schema: \($0.schemaJSON))" }
+                    .joined(separator: "\n")
+                return ("Pick ONE tool and call own_account_action again with tool_name, arguments, and summary. Available tools:\n\(listing)", false)
+            } catch {
+                return (error.localizedDescription, true)
+            }
+        }
+        guard let summary = input["summary"]?.stringValue, !summary.isEmpty else {
+            return ("Provide summary: one plain sentence describing exactly what will happen.", true)
+        }
+        let argumentsJSON = input["arguments"].flatMap { value -> String? in
+            guard let data = try? JSONEncoder().encode(value) else { return nil }
+            return String(data: data, encoding: .utf8)
+        }
+        let card = OwnAccountConfirmCard(
+            summary: summary, kind: kind, toolName: toolName,
+            argumentsJSON: argumentsJSON, completed: nil
+        )
+        sink(.card(.ownAccountConfirm(card)))
+        return ("Confirmation card shown. The action runs ONLY if the user taps Confirm — do not claim it happened. Briefly tell the user to review the card.", false)
     }
 
     // MARK: render_card

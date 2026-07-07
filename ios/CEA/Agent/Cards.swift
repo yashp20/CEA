@@ -8,6 +8,7 @@ enum CardPayload: Codable, Equatable {
     case topThree(TopThreeCard)
     case rideConfirm(RideConfirmCard)
     case handoff(HandoffCard)
+    case ownAccountConfirm(OwnAccountConfirmCard)
 
     private enum CodingKeys: String, CodingKey { case type }
 
@@ -15,6 +16,7 @@ enum CardPayload: Codable, Equatable {
         case topThree = "top_three"
         case rideConfirm = "ride_confirm"
         case handoff = "handoff"
+        case ownAccountConfirm = "own_account_confirm"
     }
 
     init(from decoder: Decoder) throws {
@@ -30,6 +32,8 @@ enum CardPayload: Codable, Equatable {
             self = .rideConfirm(try RideConfirmCard(from: decoder))
         case .handoff:
             self = .handoff(try HandoffCard(from: decoder))
+        case .ownAccountConfirm:
+            self = .ownAccountConfirm(try OwnAccountConfirmCard(from: decoder))
         }
     }
 
@@ -44,6 +48,9 @@ enum CardPayload: Codable, Equatable {
             try card.encode(to: encoder)
         case .handoff(let card):
             try container.encode(Kind.handoff, forKey: .type)
+            try card.encode(to: encoder)
+        case .ownAccountConfirm(let card):
+            try container.encode(Kind.ownAccountConfirm, forKey: .type)
             try card.encode(to: encoder)
         }
     }
@@ -128,6 +135,29 @@ struct HandoffCard: Codable, Equatable {
         let decoded = try container.decodeIfPresent([HandoffAction].self, forKey: .actions) ?? []
         actions = Array(decoded.prefix(3))
         fallbacks = try container.decodeIfPresent([HandoffAction].self, forKey: .fallbacks)
+    }
+}
+
+/// v1.1 §4 — confirm-before-side-effect card for own-account actions
+/// (reminder, calendar event, note, message via the user's Zapier). Shows
+/// exactly what will happen; the action runs ONLY when the user taps Confirm
+/// in this card. Never used for marketplace transactions.
+struct OwnAccountConfirmCard: Codable, Equatable {
+    /// Plain-language description of the side effect ("Text Maya your ETA").
+    var summary: String
+    /// One of: message | reminder | calendar_event | note | list_item.
+    var kind: String
+    /// The MCP tool to call on the user's Zapier server.
+    var toolName: String?
+    /// Serialized JSON arguments for that tool.
+    var argumentsJSON: String?
+    /// Set after the user confirmed and the call succeeded (prevents re-runs).
+    var completed: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case summary, kind, completed
+        case toolName = "tool_name"
+        case argumentsJSON = "arguments_json"
     }
 }
 
