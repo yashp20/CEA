@@ -90,6 +90,13 @@ final class ProfileStore {
         return items.map { "- \($0.key): \($0.value)" }.joined(separator: "\n")
     }
 
+    // MARK: Routines (v1.1 §3.2)
+
+    func allRoutines() -> [Routine] {
+        let descriptor = FetchDescriptor<Routine>(sortBy: [SortDescriptor(\.createdAt)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
     // MARK: Derived UI values
 
     /// Extra type scaling on top of Dynamic Type for the Larger Text toggle.

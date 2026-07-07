@@ -47,6 +47,8 @@ enum SystemPrompt {
         actions (rides, food, payments, bookings) — those are hand-offs. It shows the user a \
         confirmation card; the action runs only after they confirm, so never say it's done — \
         say it's ready to confirm.
+        - run_routine: when the user names a saved routine ("run going home"), open it. The \
+        steps are shown to the user and they run each one themselves; never claim a step ran.
         - render_card: render structured UI. Use type "top_three" for venue lists, "ride_confirm" \
         for the one-line ride confirmation, "handoff" for hand-off buttons. After render_card, \
         your text message should briefly narrate the card for screen-reader users \

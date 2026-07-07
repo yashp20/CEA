@@ -17,6 +17,8 @@ struct ChatView: View {
     @State private var isSending = false
     /// The assistant message currently receiving streamed text (§3.5).
     @State private var streamingMessage: ChatMessage?
+    /// Routine opened by the agent's run_routine tool (§3.2).
+    @State private var routineToRun: Routine?
 
     private var profile: AccessibilityProfile { profileStore.profile }
     private var reduceMotion: Bool {
@@ -79,6 +81,9 @@ struct ChatView: View {
         // §1 bug 4: TTS is scoped to the visible chat — leaving the screen
         // stops speech immediately instead of reading into the next screen.
         .onDisappear { SpeechService.shared.stop() }
+        .sheet(item: $routineToRun) { routine in
+            RoutineRunView(routine: routine)
+        }
     }
 
     /// Opens a hand-off URL and counts it toward shortcut personalization.
@@ -172,6 +177,10 @@ struct ChatView: View {
                     case .notice(let line):
                         append(ChatMessage(role: .notice, text: line))
                         Haptics.shared.play(.confirmed, enabled: profile.hapticsEnabled)
+                    case .startRoutine(let routine):
+                        append(ChatMessage(role: .notice, text: "Opening routine: \(routine.name). Every step waits for you."))
+                        routineToRun = routine
+                        Haptics.shared.play(.needsInput, enabled: profile.hapticsEnabled)
                     }
                 }
             } catch {

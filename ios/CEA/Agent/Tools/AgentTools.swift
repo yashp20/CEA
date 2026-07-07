@@ -12,6 +12,9 @@ enum AgentEvent {
     case card(CardPayload)
     /// Visible confirmation lines (e.g. "Saved: …") — rendered distinctly.
     case notice(String)
+    /// Open a routine's run screen (v1.1 §3.2, one-utterance trigger). Every
+    /// step stays visible and user-executed — the agent only opens the door.
+    case startRoutine(Routine)
 }
 
 /// Executes tool calls in Swift on device (CLAUDE.md agent loop §2).
@@ -89,6 +92,16 @@ final class AgentToolbox {
                 )
             ),
             ToolDefinition(
+                name: "run_routine",
+                description: "Open one of the user's saved routines (multi-step flows like 'Going home') by name when they ask to run it. The routine's steps are shown to the user and they run/confirm each step themselves — nothing executes automatically.",
+                inputSchema: schema(
+                    properties: [
+                        "name": prop("string", "The routine name the user said, e.g. 'going home'."),
+                    ],
+                    required: ["name"]
+                )
+            ),
+            ToolDefinition(
                 name: "own_account_action",
                 description: "Own-account tasks ONLY, through the user's connected Zapier: create a reminder or calendar event, save a note, add to a personal list, or send a message the user explicitly asked to send. NEVER rides, food, payments, orders, bookings, or anything on a marketplace — those use build_handoff_link. Call without tool_name first to discover the available tools. Every action shows a confirmation card and runs only after the user taps Confirm; never claim it happened.",
                 inputSchema: schema(
@@ -134,6 +147,8 @@ final class AgentToolbox {
                 return (savePreference(input, sink: sink), false)
             case "own_account_action":
                 return await ownAccountAction(input, sink: sink)
+            case "run_routine":
+                return runRoutine(input, sink: sink)
             case "render_card":
                 return renderCard(input, sink: sink)
             default:
@@ -277,6 +292,22 @@ final class AgentToolbox {
         let confirmation = profileStore.savePreference(key: key.replacingOccurrences(of: " ", with: "_"), value: value)
         sink(.notice(confirmation))
         return "Preference stored and confirmation shown to the user: \(confirmation)"
+    }
+
+    // MARK: run_routine (v1.1 §3.2)
+
+    private func runRoutine(_ input: JSONValue, sink: (AgentEvent) -> Void) -> (String, Bool) {
+        let query = input["name"]?.stringValue ?? ""
+        let routines = profileStore.allRoutines()
+        guard !routines.isEmpty else {
+            return ("The user has no saved routines yet. Tell them they can create one from the sidebar under Routines.", false)
+        }
+        guard let match = RoutineEngine.match(query, in: routines) else {
+            let names = routines.map(\.name).joined(separator: ", ")
+            return ("No routine matches \"\(query)\". Available routines: \(names). Ask which one they meant.", false)
+        }
+        sink(.startRoutine(match))
+        return ("Routine \"\(match.name)\" opened for the user with every step visible. They run and confirm each step themselves — do not claim any step ran.", false)
     }
 
     // MARK: own_account_action (v1.1 §4)

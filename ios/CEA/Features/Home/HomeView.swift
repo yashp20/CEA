@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var activeSession: ChatSession?
     @State private var sidebarOpen = false
     @State private var focusMode = false
+    @State private var showRoutines = false
 
     private var profile: AccessibilityProfile { profileStore.profile }
     private var reduceMotion: Bool {
@@ -46,7 +47,11 @@ struct HomeView: View {
 
                     ChatSidebar(
                         activeSession: $activeSession,
-                        onClose: { closeSidebar() }
+                        onClose: { closeSidebar() },
+                        onOpenRoutines: {
+                            closeSidebar()
+                            showRoutines = true
+                        }
                     )
                     .frame(width: 300)
                     .transition(reduceMotion ? .opacity : .move(edge: .leading))
@@ -99,6 +104,9 @@ struct HomeView: View {
                     .accessibilityLabel("Profile and settings")
                 }
             }
+            .navigationDestination(isPresented: $showRoutines) {
+                RoutinesView()
+            }
         }
         .fullScreenCover(isPresented: $focusMode) {
             if let session = activeSession {
@@ -149,6 +157,7 @@ struct HomeView: View {
 struct ChatSidebar: View {
     @Binding var activeSession: ChatSession?
     var onClose: () -> Void
+    var onOpenRoutines: () -> Void
 
     @Environment(ProfileStore.self) private var profileStore
     @Environment(\.modelContext) private var context
@@ -177,6 +186,18 @@ struct ChatSidebar: View {
             }
             .padding(.horizontal)
             .padding(.top, 12)
+
+            Button(action: onOpenRoutines) {
+                Label("Routines", systemImage: "list.bullet.rectangle")
+                    .font(.body.weight(.medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .frame(minHeight: Theme.minTapTarget)
+            }
+            .foregroundStyle(.primary)
+            .accessibilityHint("Saved multi-step flows you run with one tap.")
+
+            Divider()
 
             if sessions.isEmpty {
                 Text("No chats yet.")
