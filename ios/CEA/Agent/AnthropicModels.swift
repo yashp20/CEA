@@ -62,10 +62,50 @@ struct MessagesRequest: Encodable {
     var tools: [ToolDefinition]
     /// Requested cap; the proxy clamps this to its own maximum.
     var maxTokens: Int
+    /// Streaming is the default (v1.1 §3.5): first tokens reach voice-first
+    /// users immediately instead of waiting for the full reply.
+    var stream: Bool = true
 
     enum CodingKeys: String, CodingKey {
-        case system, messages, tools
+        case system, messages, tools, stream
         case maxTokens = "max_tokens"
+    }
+}
+
+// MARK: Streaming (SSE) events
+
+/// One decoded server-sent event from the Messages streaming API. Only the
+/// fields the app consumes; unknown event types are skipped by the client.
+struct StreamEvent: Decodable {
+    var type: String
+    var index: Int?
+    var contentBlock: StreamContentBlock?
+    var delta: StreamDelta?
+    var error: APIErrorResponse.APIError?
+
+    enum CodingKeys: String, CodingKey {
+        case type, index, delta, error
+        case contentBlock = "content_block"
+    }
+}
+
+struct StreamContentBlock: Decodable {
+    var type: String
+    var id: String?
+    var name: String?
+    var text: String?
+}
+
+struct StreamDelta: Decodable {
+    var type: String?
+    var text: String?
+    var partialJSON: String?
+    var stopReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type, text
+        case partialJSON = "partial_json"
+        case stopReason = "stop_reason"
     }
 }
 

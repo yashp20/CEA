@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// The conversation screen (PRD F2). Messages persist to SwiftData; the
 /// agent runs the client-side tool loop and streams events back.
@@ -12,6 +13,8 @@ struct ChatView: View {
 
     @State private var input = ""
     @State private var isSending = false
+    /// The assistant message currently receiving streamed text (§3.5).
+    @State private var streamingMessage: ChatMessage?
 
     private var profile: AccessibilityProfile { profileStore.profile }
     private var reduceMotion: Bool {
@@ -36,7 +39,9 @@ struct ChatView: View {
                             .id(message.persistentModelID)
                             .transition(Motion.insertion(reduceMotion: reduceMotion))
                         }
-                        if isSending {
+                        if isSending && streamingMessage == nil {
+                            // Instant acknowledgment (§3.5): visible the moment
+                            // input is received, before the first token.
                             ThinkingIndicator(reduceMotion: reduceMotion)
                         }
                     }
@@ -48,6 +53,11 @@ struct ChatView: View {
                         withAnimation(Motion.spring(reduceMotion: reduceMotion)) {
                             proxy.scrollTo(last.persistentModelID, anchor: .bottom)
                         }
+                    }
+                }
+                .onChange(of: streamingMessage?.text) {
+                    if let streaming = streamingMessage {
+                        proxy.scrollTo(streaming.persistentModelID, anchor: .bottom)
                     }
                 }
             }
@@ -106,16 +116,40 @@ struct ChatView: View {
         session.updatedAt = .now
         isSending = true
 
+        // Instant acknowledgment (§3.5): haptic + visible indicator + spoken
+        // announcement fire the moment input is received — no silent dead air.
+        Haptics.shared.play(.tap, enabled: profile.hapticsEnabled)
+        UIAccessibility.post(notification: .announcement, argument: "Heard you — working on it.")
+        SpeechService.shared.beginStreamingTurn(
+            spokenResponsesEnabled: profile.spokenResponses || profile.voiceFirst
+        )
+
         Task { @MainActor in
-            defer { isSending = false }
+            defer {
+                isSending = false
+                streamingMessage = nil
+            }
             let client = AgentClient(profileStore: profileStore)
-            var spokenParts: [String] = []
             do {
                 try await client.send(userText: text, history: history) { event in
                     switch event {
+                    case .assistantDelta(let full):
+                        if let streaming = streamingMessage {
+                            streaming.text = full
+                        } else {
+                            let message = ChatMessage(role: .assistant, text: full)
+                            append(message)
+                            streamingMessage = message
+                        }
+                        SpeechService.shared.ingestStreaming(fullText: full)
                     case .assistantText(let reply):
-                        append(ChatMessage(role: .assistant, text: reply))
-                        spokenParts.append(reply)
+                        if let streaming = streamingMessage {
+                            streaming.text = reply
+                            streamingMessage = nil
+                        } else {
+                            append(ChatMessage(role: .assistant, text: reply))
+                        }
+                        SpeechService.shared.finishStreamingMessage(finalText: reply)
                     case .card(let card):
                         let json = (try? JSONEncoder().encode(card)).flatMap { String(data: $0, encoding: .utf8) }
                         append(ChatMessage(role: .assistant, text: "", cardJSON: json))
@@ -131,12 +165,6 @@ struct ChatView: View {
                 append(ChatMessage(role: .notice, text: error.localizedDescription))
                 Haptics.shared.play(.headsUp, enabled: profile.hapticsEnabled)
             }
-            // Speak the turn when the user chose spoken responses and
-            // VoiceOver is off (never double-speak; SpeechService checks).
-            SpeechService.shared.speakIfAppropriate(
-                spokenParts.joined(separator: " "),
-                spokenResponsesEnabled: profile.spokenResponses || profile.voiceFirst
-            )
             try? context.save()
         }
     }

@@ -69,11 +69,23 @@ struct ProfileView: View {
                     Text("Venue results are ranked by reported accessible entrances where that data exists; CEA says when it's unavailable.")
                 }
 
-                Section("Thinking & Speech") {
+                Section {
                     row("Simplified Mode", "list.number", $profile.simplifiedMode)
                     row("Voice-First (big mic)", "mic", $profile.voiceFirst)
                     row("Read Replies Aloud", "speaker.wave.2", $profile.spokenResponses)
                     row("Reduce Motion", "wind", $profile.reduceMotion)
+                    Picker(selection: $profile.verbosityRaw) {
+                        ForEach(VerbosityLevel.allCases) { level in
+                            Text(level.displayName).tag(level.rawValue)
+                        }
+                    } label: {
+                        Label("Reply Detail", systemImage: "text.alignleft")
+                    }
+                    .frame(minHeight: Theme.minTapTarget - 12)
+                } header: {
+                    Text("Thinking & Speech")
+                } footer: {
+                    Text("Reply Detail sets how much CEA says: terse for the fewest words, simple for short literal sentences, rich for the full picture read aloud. Automatic follows the rest of your profile.")
                 }
 
                 MemoryLedgerSection()

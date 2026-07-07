@@ -52,7 +52,9 @@ export default {
     // Enforce model + max_tokens regardless of what the client asked for.
     body.model = ENFORCED_MODEL;
     body.max_tokens = Math.min(Number(body.max_tokens) || MAX_TOKENS_CAP, MAX_TOKENS_CAP);
-    body.stream = false;
+    // Streaming pass-through (v1.1 §3.5 latency budget): the app streams by
+    // default so voice-first users hear the first sentence, not dead air.
+    body.stream = body.stream === true;
 
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -64,9 +66,12 @@ export default {
       body: JSON.stringify(body),
     });
 
+    // SSE responses keep their content type; JSON stays JSON.
     return new Response(upstream.body, {
       status: upstream.status,
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": upstream.headers.get("content-type") || "application/json",
+      },
     });
   },
 };

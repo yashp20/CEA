@@ -3,6 +3,12 @@ import Foundation
 /// Talks to the CEA proxy (which holds the Anthropic API key and enforces
 /// model + max_tokens) and runs the client-side tool-use loop: Claude plans,
 /// tools execute in Swift on device, results go back until a final text turn.
+///
+/// v1.1 §3.5 — latency is an accessibility feature: responses stream over
+/// SSE, text events fire as sentences arrive (so TTS can start speaking
+/// immediately), and the UI shows an instant acknowledgment before the first
+/// token. Falls back transparently to a plain JSON response when the proxy
+/// doesn't stream.
 @MainActor
 final class AgentClient {
 
@@ -33,12 +39,7 @@ final class AgentClient {
 
     // TODO(cea): wire proxy URL — set CEAProxyURL in Info.plist (via
     // Secrets.xcconfig) to the deployed Cloudflare Worker from /proxy.
-    private var proxyURL: URL? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "CEAProxyURL") as? String,
-              !raw.isEmpty, !raw.hasPrefix("$("),
-              let url = URL(string: raw), url.scheme?.hasPrefix("http") == true else { return nil }
-        return url
-    }
+    private var proxyURL: URL? { ProxyConfig.baseURL }
 
     /// Runs one user turn. `history` is prior chat messages (persisted
     /// transcript); events stream back to the UI as they happen.
@@ -48,9 +49,12 @@ final class AgentClient {
         var messages = Self.apiTranscript(from: history)
         messages.append(APIMessage(role: "user", content: [.text(userText)]))
 
+        // §3.6: the verbosity dial shapes the prompt AND the output (below).
+        let style = ResponseShaper.style(for: profileStore.profile)
         let system = SystemPrompt.build(
             profileSummary: profileStore.profile.promptSummary,
-            memoryLines: profileStore.memoryPromptLines
+            memoryLines: profileStore.memoryPromptLines,
+            styleDirectives: ResponseShaper.promptDirectives(for: style)
         )
 
         for _ in 0..<maxToolTurns {
@@ -60,43 +64,141 @@ final class AgentClient {
                 tools: toolbox.definitions,
                 maxTokens: 700
             )
-            let response = try await post(request, to: proxyURL)
+            let turn = try await streamTurn(request, to: proxyURL, style: style, onEvent: onEvent)
 
             var toolResults: [APIContentBlock] = []
-            for block in response.content {
-                switch block {
-                case .text(let text):
-                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { onEvent(.assistantText(trimmed)) }
-                case .toolUse(let id, let name, let input):
+            for block in turn.content {
+                if case .toolUse(let id, let name, let input) = block {
                     let result = await toolbox.execute(name: name, input: input, sink: onEvent)
                     toolResults.append(.toolResult(toolUseID: id, content: result.content, isError: result.isError))
-                case .toolResult:
-                    continue // never sent by the API
                 }
             }
 
-            guard response.stopReason == "tool_use", !toolResults.isEmpty else { return }
-            messages.append(APIMessage(role: "assistant", content: response.content))
+            guard turn.stopReason == "tool_use", !toolResults.isEmpty else { return }
+            messages.append(APIMessage(role: "assistant", content: turn.content))
             messages.append(APIMessage(role: "user", content: toolResults))
         }
     }
 
-    // MARK: Networking
+    // MARK: Streaming
 
-    private func post(_ body: MessagesRequest, to url: URL) async throws -> MessagesResponse {
+    private struct TurnResult {
+        var content: [APIContentBlock]
+        var stopReason: String?
+    }
+
+    /// One model turn over SSE. Emits `.assistantDelta` as text streams and
+    /// `.assistantText` when a text block completes. Tool-use blocks are
+    /// accumulated (input arrives as partial JSON) and returned for execution.
+    private func streamTurn(
+        _ body: MessagesRequest,
+        to url: URL,
+        style: ResponseStyle,
+        onEvent: @MainActor (AgentEvent) -> Void
+    ) async throws -> TurnResult {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60
+        request.setValue("text/event-stream, application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 120
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-            throw AgentError.badResponse(apiError?.error?.message ?? "server returned \(http.statusCode)")
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AgentError.badResponse("no HTTP response")
         }
-        return try JSONDecoder().decode(MessagesResponse.self, from: data)
+        let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
+
+        // Fallback: proxy answered with a complete JSON body (older proxy or
+        // an error payload). Same behavior as the pre-streaming client.
+        guard http.statusCode == 200, contentType.contains("text/event-stream") else {
+            var data = Data()
+            for try await byte in bytes { data.append(byte) }
+            if http.statusCode != 200 {
+                let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw AgentError.badResponse(apiError?.error?.message ?? "server returned \(http.statusCode)")
+            }
+            let decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
+            for block in decoded.content {
+                if case .text(let text) = block {
+                    let shaped = ResponseShaper.shape(text, style: style)
+                    if !shaped.isEmpty {
+                        onEvent(.assistantDelta(full: shaped))
+                        onEvent(.assistantText(shaped))
+                    }
+                }
+            }
+            return TurnResult(content: decoded.content, stopReason: decoded.stopReason)
+        }
+
+        // SSE path: accumulate content blocks by index in arrival order.
+        var blockOrder: [Int] = []
+        var texts: [Int: String] = [:]
+        var toolUses: [Int: (id: String, name: String, partialJSON: String)] = [:]
+        var stopReason: String?
+        let decoder = JSONDecoder()
+
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data:") else { continue }
+            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            guard !payload.isEmpty, let data = payload.data(using: .utf8),
+                  let event = try? decoder.decode(StreamEvent.self, from: data) else { continue }
+
+            switch event.type {
+            case "content_block_start":
+                guard let index = event.index, let block = event.contentBlock else { continue }
+                blockOrder.append(index)
+                switch block.type {
+                case "text":
+                    texts[index] = block.text ?? ""
+                case "tool_use":
+                    toolUses[index] = (id: block.id ?? "", name: block.name ?? "", partialJSON: "")
+                default:
+                    break // unknown block types are ignored
+                }
+
+            case "content_block_delta":
+                guard let index = event.index, let delta = event.delta else { continue }
+                if let text = delta.text, texts[index] != nil {
+                    texts[index]! += text
+                    let sofar = texts[index]!.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !sofar.isEmpty { onEvent(.assistantDelta(full: sofar)) }
+                }
+                if let partial = delta.partialJSON, toolUses[index] != nil {
+                    toolUses[index]!.partialJSON += partial
+                }
+
+            case "content_block_stop":
+                guard let index = event.index else { continue }
+                if let text = texts[index] {
+                    // §3.6 mechanical cap: the final text replaces the raw
+                    // streamed text in the UI.
+                    let shaped = ResponseShaper.shape(text, style: style)
+                    if !shaped.isEmpty { onEvent(.assistantText(shaped)) }
+                }
+
+            case "message_delta":
+                if let reason = event.delta?.stopReason { stopReason = reason }
+
+            case "error":
+                throw AgentError.badResponse(event.error?.message ?? "stream error")
+
+            default:
+                break // message_start, ping, message_stop
+            }
+        }
+
+        var content: [APIContentBlock] = []
+        for index in blockOrder {
+            if let text = texts[index] {
+                content.append(.text(text))
+            } else if let tool = toolUses[index] {
+                let inputData = tool.partialJSON.data(using: .utf8) ?? Data()
+                let input = (try? decoder.decode(JSONValue.self, from: inputData)) ?? .object([:])
+                content.append(.toolUse(id: tool.id, name: tool.name, input: input))
+            }
+        }
+        return TurnResult(content: content, stopReason: stopReason)
     }
 
     // MARK: Transcript mapping
@@ -128,5 +230,16 @@ final class AgentClient {
             result.removeFirst()
         }
         return result
+    }
+}
+
+/// Single source for the proxy base URL (used by the agent, the crowdsource
+/// layer, and the memory backend — all ride the same Worker).
+enum ProxyConfig {
+    static var baseURL: URL? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "CEAProxyURL") as? String,
+              !raw.isEmpty, !raw.hasPrefix("$("),
+              let url = URL(string: raw), url.scheme?.hasPrefix("http") == true else { return nil }
+        return url
     }
 }

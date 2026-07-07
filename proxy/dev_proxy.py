@@ -57,7 +57,9 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             requested = MAX_TOKENS_CAP
         body["max_tokens"] = min(requested, MAX_TOKENS_CAP)
-        body["stream"] = False
+        # Streaming pass-through (v1.1 §3.5): mirror worker.js behavior.
+        stream = body.get("stream") is True
+        body["stream"] = stream
 
         request = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
@@ -71,15 +73,35 @@ class Handler(BaseHTTPRequestHandler):
         )
         try:
             with urllib.request.urlopen(request, timeout=120) as upstream:
-                self._raw(upstream.status, upstream.read())
+                if stream and "text/event-stream" in (upstream.headers.get("content-type") or ""):
+                    self._stream(upstream)
+                else:
+                    self._raw(upstream.status, upstream.read(),
+                              upstream.headers.get("content-type") or "application/json")
         except urllib.error.HTTPError as e:
             self._raw(e.code, e.read())
         except urllib.error.URLError as e:
             self._json(502, {"error": {"type": "api_error", "message": "upstream unreachable: %s" % e.reason}})
 
-    def _raw(self, status, payload):
+    def _stream(self, upstream):
+        """Relay SSE chunks as they arrive (no buffering — that's the point)."""
+        self.send_response(upstream.status)
+        self.send_header("content-type", "text/event-stream")
+        self.send_header("cache-control", "no-cache")
+        self.end_headers()
+        try:
+            while True:
+                chunk = upstream.read(1024)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client went away; nothing to clean up (no storage)
+
+    def _raw(self, status, payload, content_type="application/json"):
         self.send_response(status)
-        self.send_header("content-type", "application/json")
+        self.send_header("content-type", content_type)
         self.send_header("content-length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)

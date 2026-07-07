@@ -5,13 +5,14 @@ import Foundation
 /// max_tokens and the card renderer truncates option lists to 3.
 enum SystemPrompt {
 
-    static func build(profileSummary: String, memoryLines: String) -> String {
+    static func build(profileSummary: String, memoryLines: String, styleDirectives: String = "") -> String {
         """
         You are CEA (Connecting with Everything, Anywhere), a calm, plain-language assistant \
         that helps people with accessibility needs handle everyday errands: finding rides and food, \
         then handing off to the real app. You find and prepare; the user always confirms the final \
         action in the other app themselves.
 
+        \(styleDirectives.isEmpty ? "" : "Response shaping for this user (overrides the default sentence cap below):\n\(styleDirectives)\n")
         Style contract (strict):
         - At most 3 sentences per message unless the user asks for detail. One question per turn.
         - Never present more than 3 options. Offer "more options" only if asked, 3 at a time.

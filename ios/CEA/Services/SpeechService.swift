@@ -6,21 +6,95 @@ import UIKit
 /// Text-to-speech via AVSpeechSynthesizer (PRD F2). Speaks only when the
 /// user chose spoken responses AND VoiceOver is off — when VoiceOver is on,
 /// it reads the transcript itself and we must not double-speak.
+///
+/// v1.1 §3.5: streaming-aware. TTS starts on the first completed sentence of
+/// a streamed reply rather than waiting for the whole message — no dead air
+/// for voice-first users. §1 bug 4: speech is scoped to the visible chat;
+/// ChatView calls `stop()` on disappear.
 @MainActor
 final class SpeechService {
     static let shared = SpeechService()
     private let synthesizer = AVSpeechSynthesizer()
 
+    // Streaming state for the in-flight assistant message.
+    private var streamingEnabled = false
+    private var spokenPrefixLength = 0
+
+    /// Call at the start of an agent turn.
+    func beginStreamingTurn(spokenResponsesEnabled: Bool) {
+        streamingEnabled = spokenResponsesEnabled && !UIAccessibility.isVoiceOverRunning
+        spokenPrefixLength = 0
+    }
+
+    /// Feed the accumulated text of the in-flight message; any newly
+    /// completed sentences are spoken immediately (utterances queue).
+    func ingestStreaming(fullText: String) {
+        guard streamingEnabled else { return }
+        speakNewSentences(in: fullText, flush: false)
+    }
+
+    /// The in-flight message finished — speak whatever remains, then reset
+    /// for the next message in the same turn.
+    func finishStreamingMessage(finalText: String) {
+        guard streamingEnabled else { return }
+        // Note: the final text may be a shaped (trimmed) version of the
+        // streamed text; anything already spoken stays spoken — we only ever
+        // speak forward from the unspoken remainder.
+        speakNewSentences(in: finalText, flush: true)
+        spokenPrefixLength = 0
+    }
+
+    /// Speaks complete sentences beyond what's been spoken already.
+    private func speakNewSentences(in text: String, flush: Bool) {
+        guard spokenPrefixLength <= text.count else {
+            if flush { spokenPrefixLength = 0 }
+            return
+        }
+        let unspoken = String(text.dropFirst(spokenPrefixLength))
+        let chunk: String
+        if flush {
+            chunk = unspoken
+        } else {
+            guard let boundary = lastSentenceBoundary(in: unspoken) else { return }
+            chunk = String(unspoken[..<boundary])
+        }
+        let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        spokenPrefixLength += chunk.count
+        speak(trimmed)
+    }
+
+    /// Index just past the last sentence terminator (. ! ? … or newline).
+    private func lastSentenceBoundary(in text: String) -> String.Index? {
+        let terminators: Set<Character> = [".", "!", "?", "…", "\n"]
+        var boundary: String.Index?
+        var index = text.startIndex
+        while index < text.endIndex {
+            if terminators.contains(text[index]) {
+                boundary = text.index(after: index)
+            }
+            index = text.index(after: index)
+        }
+        return boundary
+    }
+
+    /// One-shot speech for non-streamed text (kept for notices/tests).
     func speakIfAppropriate(_ text: String, spokenResponsesEnabled: Bool) {
         guard spokenResponsesEnabled, !UIAccessibility.isVoiceOverRunning, !text.isEmpty else { return }
-        synthesizer.stopSpeaking(at: .immediate)
+        speak(text)
+    }
+
+    private func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         synthesizer.speak(utterance)
     }
 
+    /// Stops and flushes everything queued (used on chat disappear — §1 bug 4).
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
+        streamingEnabled = false
+        spokenPrefixLength = 0
     }
 }
 

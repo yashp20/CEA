@@ -4,6 +4,10 @@ import MapKit
 
 /// Events the agent surfaces to the UI while a turn runs.
 enum AgentEvent {
+    /// Streaming update (v1.1 §3.5): the full text of the in-flight assistant
+    /// message so far. The UI renders it live; TTS speaks completed sentences.
+    case assistantDelta(full: String)
+    /// The finalized text of an assistant message (post style shaping).
     case assistantText(String)
     case card(CardPayload)
     /// Visible confirmation lines (e.g. "Saved: …") — rendered distinctly.

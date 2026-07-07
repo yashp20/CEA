@@ -56,23 +56,28 @@ struct MessageRow: View {
     }
 }
 
-/// Typing indicator while the agent works. Motion routes through the helper;
-/// under Reduce Motion it is a static label.
+/// The instant acknowledgment + working indicator (§3.5): appears the moment
+/// input is received — the visual twin of the "heard you" haptic — and stays
+/// until the first streamed token replaces it. Motion routes through the
+/// helper; under Reduce Motion it is a static label.
 struct ThinkingIndicator: View {
     var reduceMotion: Bool
     @State private var pulse = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if reduceMotion {
-                Text("Thinking…")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.bubble")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text("Heard you — on it")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            if !reduceMotion {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
                         .fill(.secondary)
-                        .frame(width: 7, height: 7)
+                        .frame(width: 6, height: 6)
                         .scaleEffect(pulse ? 1.0 : 0.55)
                         .animation(
                             .easeInOut(duration: 0.5).repeatForever().delay(Double(i) * 0.15),
@@ -85,6 +90,6 @@ struct ThinkingIndicator: View {
         .padding(.vertical, 12)
         .background(Theme.assistantBubble, in: RoundedRectangle(cornerRadius: Theme.bubbleCornerRadius))
         .onAppear { pulse = true }
-        .accessibilityLabel("CEA is thinking")
+        .accessibilityLabel("Heard you. CEA is working on it.")
     }
 }
