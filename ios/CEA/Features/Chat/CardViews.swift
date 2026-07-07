@@ -104,10 +104,10 @@ private struct PlaceOptionRow: View {
         switch option.wheelchairAccessible {
         case .some(true):
             Label("Wheelchair-accessible entrance", systemImage: "figure.roll")
-                .foregroundStyle(profile.highContrast ? .primary : Color.green)
+                .foregroundStyle(Theme.positive(for: profile.colorBlindType, highContrast: profile.highContrast))
         case .some(false):
             Label("No accessible entrance reported", systemImage: "exclamationmark.triangle")
-                .foregroundStyle(profile.highContrast ? .primary : Color.orange)
+                .foregroundStyle(Theme.caution(for: profile.colorBlindType, highContrast: profile.highContrast))
         case .none:
             Label("Accessibility info unavailable", systemImage: "questionmark.circle")
                 .foregroundStyle(.secondary)
@@ -213,8 +213,8 @@ struct HandoffCardView: View {
     private func handoffButton(_ action: HandoffAction, prominent: Bool) -> some View {
         if let url = action.url {
             Button {
-                HapticsService.confirm(enabled: profile.hapticConfirmations)
-                if profile.hapticConfirmations {
+                Haptics.shared.play(.confirmed, enabled: profile.hapticsEnabled)
+                if profile.hapticsEnabled {
                     withAnimation(Motion.snappy(reduceMotion: reduceMotion)) { flash = true }
                 }
                 onOpenURL(url)

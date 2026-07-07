@@ -44,10 +44,16 @@ struct OnboardingView: View {
                 .padding()
                 .animation(Motion.spring(reduceMotion: reduceMotion), value: page)
             }
+            .scrollDismissesKeyboard(.interactively)
+            // Tap outside any field dismisses the keyboard (§1 bug 1);
+            // interactive children (toggles, buttons, fields) win the tap.
+            .onTapGesture { dismissKeyboard() }
 
             controls
         }
         .background(Theme.screenBackground)
+        // Keyboard never survives a step change.
+        .onChange(of: page) { dismissKeyboard() }
     }
 
     // MARK: Chrome
@@ -105,6 +111,7 @@ struct OnboardingView: View {
     }
 
     private func finish() {
+        dismissKeyboard()
         profileStore.profile.onboardingCompleted = true
         profileStore.save()
     }
@@ -130,15 +137,24 @@ struct OnboardingView: View {
     }
 
     private func readingPage(profile: Bindable<AccessibilityProfile>) -> some View {
-        questionPage(
-            question: "How is reading on a phone for you?",
-            toggles: [
-                ("Bigger text helps", "textformat.size", profile.largerText),
-                ("Strong contrast helps", "circle.lefthalf.filled", profile.highContrast),
-                ("I'm colorblind", "eye.trianglebadge.exclamationmark", profile.colorBlindness),
-                ("I use VoiceOver / can't see the screen", "eye.slash", profile.blindness),
-            ]
-        )
+        VStack(alignment: .leading, spacing: Theme.spacing) {
+            questionPage(
+                question: "How is reading on a phone for you?",
+                toggles: [
+                    ("Bigger text helps", "textformat.size", profile.largerText),
+                    ("Strong contrast helps", "circle.lefthalf.filled", profile.highContrast),
+                    ("I'm colorblind", "eye.trianglebadge.exclamationmark", profile.colorBlindness),
+                    ("I use VoiceOver / can't see the screen", "eye.slash", profile.blindness),
+                ]
+            )
+            // Subtype selector appears when the toggle is on (§1 bug 2) so the
+            // palette can adapt to the specific kind of color blindness.
+            if profileStore.profile.colorBlindness {
+                ColorBlindTypePicker(selectionRaw: profile.colorBlindnessTypeRaw)
+                    .transition(Motion.insertion(reduceMotion: reduceMotion))
+            }
+        }
+        .animation(Motion.spring(reduceMotion: reduceMotion), value: profileStore.profile.colorBlindness)
     }
 
     private func hearingPage(profile: Bindable<AccessibilityProfile>) -> some View {
@@ -255,18 +271,24 @@ struct ChatPreview: View {
                     onOpenURL: { _ in }
                 )
                 if profile.hearingImpaired || profile.hapticConfirmations {
-                    Label("Confirmations vibrate and flash like this", systemImage: "checkmark.circle.fill")
+                    // §1 bug 3: the flash is a border + corner badge now, so
+                    // this text stays fully legible, and the real Core Haptics
+                    // pattern fires with it — visual + haptic twins together.
+                    Label("Confirmations vibrate and flash like this — tap to feel it", systemImage: "checkmark.circle.fill")
                         .font(.footnote.weight(.medium))
                         .padding(8)
                         .frame(maxWidth: .infinity)
                         .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                         .visualFlash(trigger: $flash, reduceMotion: reduceMotion)
-                        .onAppear { flash = true }
-                        .onTapGesture {
-                            HapticsService.confirm(enabled: true)
+                        .onAppear {
+                            Haptics.shared.play(.confirmed, enabled: true)
                             flash = true
                         }
-                        .accessibilityLabel("Example confirmation. Confirmations vibrate and flash.")
+                        .onTapGesture {
+                            Haptics.shared.play(.confirmed, enabled: true)
+                            flash = true
+                        }
+                        .accessibilityLabel("Example confirmation. Confirmations vibrate and flash. Double-tap to feel the vibration.")
                 }
                 InputBar(
                     text: $previewText,
@@ -297,5 +319,33 @@ struct ChatPreview: View {
             return "Okay. 1. Confirm pickup at your location. 2. I prepare the ride. Say 'yes' to continue."
         }
         return "Pickup at your location, drop-off Union Station — shall I prepare Uber and Lyft with that trip?"
+    }
+}
+
+/// Subtype selector for the color-blindness toggle (§1 bug 2). Shared by
+/// onboarding and Profile. Optional: leaving it unset keeps the generic
+/// color-safe behavior (labels + icons, never color alone).
+struct ColorBlindTypePicker: View {
+    @Binding var selectionRaw: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Which kind, if you know?")
+                .font(.subheadline.weight(.medium))
+            Picker("Kind of color blindness", selection: $selectionRaw) {
+                Text("Not sure / skip").tag("")
+                ForEach(ColorBlindType.allCases) { type in
+                    Text(type.displayName).tag(type.rawValue)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(minHeight: Theme.minTapTarget)
+            Text("CEA adjusts its status colors to stay distinguishable for you. Labels always carry the meaning too.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+        .accessibilityElement(children: .contain)
     }
 }

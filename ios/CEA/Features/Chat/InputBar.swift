@@ -11,6 +11,7 @@ struct InputBar: View {
     var onSend: () -> Void
 
     @State private var dictation = DictationService()
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 4) {
@@ -28,6 +29,7 @@ struct InputBar: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                    .focused($fieldFocused)
                     .onSubmit(submit)
                     .disabled(isSending)
                     .accessibilityLabel("Message CEA")
@@ -47,7 +49,7 @@ struct InputBar: View {
 
     private var micButton: some View {
         Button {
-            HapticsService.tap(enabled: true)
+            Haptics.shared.play(.tap, enabled: true)
             dictation.toggle()
         } label: {
             Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
@@ -93,6 +95,9 @@ struct InputBar: View {
     private func submit() {
         guard canSend else { return }
         if dictation.isRecording { dictation.stop() }
+        // Keyboard drops on send (v1.1 §1 bug 1) so confirmations and the
+        // reply are never hidden behind it.
+        fieldFocused = false
         onSend()
     }
 }

@@ -66,6 +66,9 @@ struct ChatView: View {
         .background(Theme.screenBackground)
         .navigationTitle(session.title)
         .navigationBarTitleDisplayMode(.inline)
+        // §1 bug 4: TTS is scoped to the visible chat — leaving the screen
+        // stops speech immediately instead of reading into the next screen.
+        .onDisappear { SpeechService.shared.stop() }
     }
 
     private var emptyState: some View {
@@ -116,15 +119,17 @@ struct ChatView: View {
                     case .card(let card):
                         let json = (try? JSONEncoder().encode(card)).flatMap { String(data: $0, encoding: .utf8) }
                         append(ChatMessage(role: .assistant, text: "", cardJSON: json))
-                        HapticsService.tap(enabled: profile.hapticConfirmations)
+                        // A card usually asks the user to choose — "your turn".
+                        Haptics.shared.play(.needsInput, enabled: profile.hapticsEnabled)
                     case .notice(let line):
                         append(ChatMessage(role: .notice, text: line))
-                        HapticsService.confirm(enabled: profile.hapticConfirmations)
+                        Haptics.shared.play(.confirmed, enabled: profile.hapticsEnabled)
                     }
                 }
             } catch {
                 // Honest failure state — no pretend answers.
                 append(ChatMessage(role: .notice, text: error.localizedDescription))
+                Haptics.shared.play(.headsUp, enabled: profile.hapticsEnabled)
             }
             // Speak the turn when the user chose spoken responses and
             // VoiceOver is off (never double-speak; SpeechService checks).

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -23,7 +23,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CEA000000000000000000012 /* Exceptions for "CEA" folder in "CEA" target */ = {
+		CEA000000000000000000012 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -33,27 +33,8 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CEA000000000000000000010 /* CEA */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				CEA000000000000000000012 /* Exceptions for "CEA" folder in "CEA" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = CEA;
-			sourceTree = "<group>";
-		};
-		CEA000000000000000000011 /* CEATests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = CEATests;
-			sourceTree = "<group>";
-		};
+		CEA000000000000000000010 /* CEA */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CEA000000000000000000012 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CEA; sourceTree = "<group>"; };
+		CEA000000000000000000011 /* CEATests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = CEATests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */

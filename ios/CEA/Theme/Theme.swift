@@ -28,6 +28,36 @@ enum Theme {
         highContrast ? brandBlueHC : brandBlue
     }
 
+    // MARK: Semantic status colors (color-blind-aware, v1.1 §1 bug 2)
+
+    /// Positive status (e.g. "accessible entrance confirmed"). Color is never
+    /// the only signal — icons/labels always carry the meaning — but the
+    /// redundant color channel should stay useful for each subtype.
+    /// TODO(cea): per-subtype palette tuning — these are conservative safe
+    /// pairs (blue/gold for red-green subtypes, avoid blue-yellow contrast
+    /// for tritanopia, lightness-only for achromatopsia), not clinically
+    /// tuned palettes.
+    static func positive(for type: ColorBlindType?, highContrast: Bool) -> Color {
+        if highContrast { return .primary }
+        switch type {
+        case nil: return .green
+        case .protanopia, .deuteranopia: return Color(red: 0.0, green: 0.45, blue: 0.85)   // blue
+        case .tritanopia: return Color(red: 0.0, green: 0.55, blue: 0.30)                  // green
+        case .achromatopsia: return .primary
+        }
+    }
+
+    /// Caution status (e.g. "no accessible entrance reported").
+    static func caution(for type: ColorBlindType?, highContrast: Bool) -> Color {
+        if highContrast { return .primary }
+        switch type {
+        case nil: return .orange
+        case .protanopia, .deuteranopia: return Color(red: 0.72, green: 0.53, blue: 0.0)   // gold
+        case .tritanopia: return Color(red: 0.80, green: 0.25, blue: 0.20)                 // red
+        case .achromatopsia: return .secondary
+        }
+    }
+
     // MARK: Surfaces
 
     static let cardBackground = Color(.secondarySystemGroupedBackground)

@@ -35,6 +35,17 @@ struct ProfileView: View {
                     row("Larger Text", "textformat.size", $profile.largerText)
                     row("High Contrast", "circle.lefthalf.filled", $profile.highContrast)
                     row("Color Blindness", "eye.trianglebadge.exclamationmark", $profile.colorBlindness)
+                    if profile.colorBlindness {
+                        Picker(selection: $profile.colorBlindnessTypeRaw) {
+                            Text("Not sure / skip").tag("")
+                            ForEach(ColorBlindType.allCases) { type in
+                                Text(type.displayName).tag(type.rawValue)
+                            }
+                        } label: {
+                            Label("Kind of color blindness", systemImage: "paintpalette")
+                        }
+                        .frame(minHeight: Theme.minTapTarget - 12)
+                    }
                     row("Low Vision", "eye", $profile.lowVision)
                     row("Blind / VoiceOver user", "eye.slash", $profile.blindness)
                 } header: {
@@ -83,13 +94,15 @@ struct ProfileView: View {
         }
     }
 
-    /// Trigger a save whenever any toggle flips.
-    private var profileSnapshot: [Bool] {
+    /// Trigger a save whenever any setting changes.
+    private var profileSnapshot: [String] {
         let p = profileStore.profile
-        return [p.largerText, p.highContrast, p.colorBlindness, p.lowVision, p.blindness,
-                p.hearingImpaired, p.captions, p.hapticConfirmations,
-                p.wheelchair, p.avoidStairs,
-                p.simplifiedMode, p.voiceFirst, p.spokenResponses, p.reduceMotion]
+        let bools = [p.largerText, p.highContrast, p.colorBlindness, p.lowVision, p.blindness,
+                     p.hearingImpaired, p.captions, p.hapticConfirmations,
+                     p.wheelchair, p.avoidStairs,
+                     p.simplifiedMode, p.voiceFirst, p.spokenResponses, p.reduceMotion,
+                     p.surveyPromptsEnabled]
+        return bools.map(String.init) + [p.colorBlindnessTypeRaw, p.verbosityRaw]
     }
 
     private func row(_ title: String, _ icon: String, _ binding: Binding<Bool>) -> some View {
