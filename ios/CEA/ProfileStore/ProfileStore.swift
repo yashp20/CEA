@@ -12,9 +12,14 @@ import UIKit
 final class ProfileStore {
     private(set) var profile: AccessibilityProfile
     private let context: ModelContext
+    /// v1.1 §5: vendor persistence for non-sensitive preference memory only.
+    /// The AccessibilityProfile itself never goes through this (see
+    /// MemoryBackend.swift for the enforced privacy split).
+    @ObservationIgnored private let memoryBackend: MemoryBackending
 
-    init(context: ModelContext) {
+    init(context: ModelContext, memoryBackend: MemoryBackending = ProxyMemoryBackend()) {
         self.context = context
+        self.memoryBackend = memoryBackend
         let descriptor = FetchDescriptor<AccessibilityProfile>()
         if let existing = try? context.fetch(descriptor).first {
             self.profile = existing
@@ -60,6 +65,8 @@ final class ProfileStore {
     }
 
     /// Writes a preference and returns the confirmation line to show in chat.
+    /// Local ledger first (source of truth), then best-effort vendor sync for
+    /// non-sensitive keys only (§5 privacy split).
     @discardableResult
     func savePreference(key: String, value: String) -> String {
         // Replace an existing entry with the same key rather than duplicating.
@@ -70,17 +77,25 @@ final class ProfileStore {
             context.insert(PreferenceMemory(key: key, value: value))
         }
         try? context.save()
+        let backend = memoryBackend
+        Task { await backend.sync(key: key, value: value) }
         return "Saved: \(key) — \(value)."
     }
 
     func deleteMemory(_ memory: PreferenceMemory) {
+        let key = memory.key
         context.delete(memory)
         try? context.save()
+        let backend = memoryBackend
+        Task { await backend.delete(key: key) }
     }
 
+    /// Clears BOTH the local ledger and the vendor-side copy (§5).
     func deleteAllMemory() {
         for m in memories() { context.delete(m) }
         try? context.save()
+        let backend = memoryBackend
+        Task { await backend.deleteAll() }
     }
 
     /// Compact memory lines for the system prompt (keys + values only).

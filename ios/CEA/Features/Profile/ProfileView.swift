@@ -108,7 +108,7 @@ struct ProfileView: View {
                         Label("Run setup again", systemImage: "arrow.counterclockwise")
                     }
                 } footer: {
-                    Text("Conversation text and this profile summary go to the AI service per request to answer you; nothing is stored server-side.")
+                    Text("Conversation text and this profile summary go to the AI service per request to answer you; conversations are never stored server-side. Your accessibility profile stays on this device only. Saved preferences (like favorite cuisines) also sync to a memory service so they survive reinstalls — deleting memory removes them there too.")
                 }
             }
             .navigationTitle("Profile")
@@ -190,7 +190,7 @@ struct MemoryLedgerSection: View {
         } header: {
             Text("Memory")
         } footer: {
-            Text("Swipe an item to delete it. Memory never includes health details or anything sensitive.")
+            Text("Swipe an item to delete it; deleting removes it from the memory service too. Memory never includes health details or anything sensitive — your accessibility profile never leaves this device.")
         }
     }
 }
