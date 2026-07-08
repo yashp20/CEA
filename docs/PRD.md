@@ -1,8 +1,8 @@
 # PRD — CEA (Connecting with Everything, Everywhere)
 
-**Version:** 1.0 (MVP for iOS app creation competition, theme: Accessibility)
+**Version:** 1.1 (MVP + v1.1 feature pass for iOS app creation competition, theme: Accessibility)
 **Platform:** iOS, native Swift/SwiftUI
-**Status:** Pre-build. This document is the source of truth for MVP scope.
+**Status:** Built through v1.1. This document is the source of truth for scope; §6.5+ describe the v1.1 additions.
 
 ---
 
@@ -19,11 +19,11 @@ People with access needs navigate a stack of single-purpose apps (delivery, ride
 These override any feature idea that conflicts with them:
 
 1. **CEA never places orders, books, or pays.** It prepares the action and hands off. The user always performs the final confirming tap inside the target app (or inside a first-party Apple surface like Calendar where the user explicitly asked CEA to create the item).
-2. **No scraping, no credential-holding, no browser/UI automation of third-party platforms.** No OpenClaw or similar agents driving other companies' apps/sites. Every integration is either (a) a legitimate read-only API, (b) a documented deep link / universal link, or (c) a first-party Apple framework.
+2. **No scraping, no credential-holding, no browser/UI automation of third-party platforms.** No OpenClaw or similar agents driving other companies' apps/sites. Every integration is either (a) a legitimate read-only API, (b) a documented deep link / universal link, (c) a first-party Apple framework, or (d — v1.1) the user's own explicitly-connected automation endpoint (Zapier MCP) strictly for own-account tasks: their calendar, reminders, notes, lists, and messages they asked to send. Credentials stay with the connector vendor (CEA holds only the user-owned endpoint URL); every side effect is shown to the user and runs only after they confirm; marketplace transactions are permanently excluded from this path.
 3. **Capability-based promises.** Marketing and in-app copy never guarantees behavior of a named third-party app. Language pattern: "For apps that support link hand-off, CEA completes the action for you — one tap and it's done. For apps that don't, CEA drops you exactly where you need to be."
 4. **The app itself must pass an accessibility audit.** An accessibility app that fails a 30-second VoiceOver test is disqualifying. Accessibility acceptance criteria (§9) are launch-blocking, not nice-to-have.
 5. **Short, calm AI responses.** Never overstimulating, never walls of text. Clarify before acting when information is ambiguous (location, cuisine, time).
-6. **Privacy-first personalization.** Accessibility profile data is sensitive. It lives on-device, is never sent anywhere except as context to the LLM call, and is user-editable/erasable at any time.
+6. **Privacy-first personalization (v1.1: two-tier).** Accessibility profile data is sensitive (disability/health-adjacent): it lives **on-device only**, is never sent anywhere except as context to the LLM call, is never synced to any memory vendor (asserted by unit tests), and is user-editable/erasable at any time. Non-sensitive **preference memory** (favorite cuisines, frequent destinations) keeps its on-device, user-visible, deletable ledger as the source of truth and additionally syncs to a memory vendor (Supermemory) under an anonymous install-scoped namespace so it survives reinstalls; sensitive-looking keys are filtered out of sync, "delete all memory" clears both sides, and the response-adaptation logic built on memory stays in the CEA codebase — the vendor is storage only.
 
 ## 4. Target users / personas
 
@@ -56,17 +56,19 @@ Primary personas for MVP (each maps to a demo moment):
 - Walking route preview to a chosen venue via MKDirections.
 - **Honesty constraint:** MapKit does not provide true wheelchair-accessible routing data. MVP may display walking routes and label venue accessibility from Places data, but must not claim computed "wheelchair-accessible routes." The Figma's "least/most accessible route" ranking is post-MVP unless a real data source is secured; do not fake it in the demo.
 
-### Explicitly OUT of MVP scope
+### Explicitly OUT of scope
 - Placing orders/reservations of any kind (permanent non-goal, not just MVP).
 - OpenTable/reservations vertical; Instacart grocery vertical (Instacart's shopping-list-page API is a strong post-MVP candidate — real cart prefill — but its access approval runs ~30–40 days; apply early, build later).
 - Reading live status from third-party apps (ride ETA, order tracking).
 - Android, iPad, watchOS.
-- Server-side user accounts. (MVP is device-local; the only backend is a thin LLM proxy.)
+- Server-side user accounts. (The app is device-local; the backend is a thin LLM proxy that, as of v1.1, also stores **anonymous** per-venue accessibility reports — never conversations, never user identities — and forwards non-sensitive preference memory to the memory vendor.)
+- Trusted-contact loop / caregiver oversight (considered for v1.1, deferred).
 
 ## 6. Feature requirements
 
 ### F1 — Onboarding with live preview
 - 3–5 screens max. Each asks one plain-language question about how the user reads, hears, gets around, and communicates (multi-select toggles mirroring the Figma profile: Color Blindness, Low Vision, Larger Text, High Contrast, Blindness, Hearing Impaired, Captions, Mobility, Cognitive/ADHD-friendly mode).
+- v1.1: toggling Color Blindness reveals a subtype selector (Protanopia / Deuteranopia / Tritanopia / Achromatopsia, plus "not sure"); status colors adapt per subtype and labels always carry the meaning. The keyboard never persists across onboarding steps (dismissed on send, tap-outside, and step advance).
 - **Live preview requirement:** a real (not mocked) preview of the chat UI is visible during onboarding and re-renders immediately as toggles change — e.g., enabling Mobility/voice-first grows the microphone button into a primary control; Larger Text raises the preview's type size; High Contrast switches the palette; Hearing Impaired shows the haptic/flash confirmation pattern.
 - First-run also asks permission for location (when-in-use) and notifications, each with a one-sentence plain-language reason.
 - Onboarding is skippable ("use standard settings") and every choice is editable later in Profile.
@@ -80,12 +82,14 @@ Primary personas for MVP (each maps to a demo moment):
   - Max 3 options presented, ever. "More options" only on explicit request, 3 at a time.
   - Plain language, no jargon, no emoji-spam, no exclamation-mark enthusiasm.
 - Every assistant turn that proposes an action ends with exactly one clear next step ("Say 'first one' or tap it to continue.").
-- Chat history persists locally (list view per Figma: "Uber Eats Order", "Best route to Starbucks", …).
+- Chat history persists locally (v1.1: reached via the home sidebar rather than a tab).
+- v1.1 latency budget (§3.5 — latency is an accessibility feature): responses stream; an instant acknowledgment (haptic tap + visible "Heard you — on it" + VoiceOver announcement) fires the moment input is sent; TTS starts speaking on the first completed sentence, not the full reply; TTS stops immediately on leaving the chat and is never active alongside VoiceOver.
+- v1.1 verbosity dial (in-repo ResponseShaper): the response style adapts per profile — terse (power user), simple (cognitive), standard, rich (blind users who want the detail a sighted user gets visually) — via system-prompt directives plus a mechanical sentence-cap post-pass. Automatic by default, user-overridable in Profile.
 
-### F3 — Memory & profile
-- Two memory layers, both on-device:
-  1. **Accessibility profile** (structured): the onboarding toggles + derived preferences (voice-first, max option count, haptic confirmations). Injected into every LLM system prompt.
-  2. **Preference memory** (lightweight, structured key-values the agent may write with user-visible confirmation): favorite cuisines, home/frequent destinations, "most recent order" style references. No free-form diary of the user. Every stored item is viewable and deletable in Profile → Memory.
+### F3 — Memory & profile (v1.1: split persistence)
+- Two memory layers:
+  1. **Accessibility profile** (structured, ON-DEVICE ONLY): the onboarding toggles + derived preferences (voice-first, max option count, haptic confirmations, colorblind subtype, verbosity). Injected into every LLM system prompt. Never synced to any vendor (unit-tested).
+  2. **Preference memory** (lightweight, structured key-values the agent may write with user-visible confirmation): favorite cuisines, home/frequent destinations, "most recent order" style references. No free-form diary of the user. Every stored item is viewable and deletable in Profile → Memory. v1.1: also persisted vendor-side (Supermemory via the proxy, anonymous namespace) for continuity; sensitive-looking keys are filtered from sync; deleting (one or all) clears both local and vendor copies.
 - Memory writes require the agent to state what it's saving ("Saved: you prefer wheelchair-accessible venues.").
 
 ### F4 — Hand-off engine
@@ -95,8 +99,29 @@ Primary personas for MVP (each maps to a demo moment):
 - If the target app isn't installed → universal link/web fallback, never a dead end.
 
 ### F5 — Profile-adaptive UI (the Figma Profile screen)
-- All toggles from F1 live here and apply app-wide instantly: type scale, contrast theme, color-blind-safe palette, haptic confirmation mode, captions-on-media, voice-first layout.
+- All toggles from F1 live here and apply app-wide instantly: type scale, contrast theme, color-blind-safe palette (per subtype), haptic confirmation mode, captions-on-media, voice-first layout, verbosity dial, community-survey opt-out.
 - These are **in addition to** honoring system settings (Dynamic Type, Reduce Motion, Increase Contrast, VoiceOver). System settings always win when stricter.
+
+## 6.5 v1.1 additions
+
+### F6 — Chat-first home (redesign)
+- No tab bar. Launch opens a fresh chat with the composer ready (never auto-focused — no surprise keyboard for VoiceOver/voice-first users). Top-left opens a slide-over sidebar with the full chat history and Routines; top-right is a small transparent Profile entry point. Floating shortcut widgets (labeled, Reduce-Motion-safe) pre-seed CEA requests or open the user's most-used apps, personalized by on-device usage counts.
+
+### F7 — Haptic vocabulary
+- One Core Haptics service with named, distinguishable patterns: `confirmed` (two rising taps), `needs_input` (one soft buzz), `heads_up`/barrier (three sharp taps), `tap`. Applied consistently app-wide; the primary channel for deaf/HoH profiles (that profile implies haptics on). Every pattern has a visual twin already on screen (border-glow flash that never covers content).
+
+### F8 — Focus mode
+- One tap collapses the UI into a single card: the one next action in huge type with one confirm button (a real hand-off open when one is pending; otherwise back-to-chat). Honest derivation from the conversation; exit always available; Dynamic Type + Reduce Motion respected.
+
+### F9 — Routines (saved multi-step flows)
+- Named, user-created, editable sequences (e.g. "Going home" = ride hand-off + text a contact + set a reminder), triggered by one tap (sidebar) or one utterance (agent). Every step is visible before it runs; steps run strictly in order; ride steps stay hand-offs; message/reminder steps go through the own-account layer (F11) and each requires its own explicit confirm; any step can be skipped.
+
+### F10 — Crowdsourced accessibility data
+- After a venue hand-off, CEA queues one short structured question (step-free entry, door width, noise, lighting, accessible bathroom, ASL-friendly staff) and asks it later at a low-pressure moment — a fresh chat, ≥2 h after the hand-off — never mid-task. One question at a time, skippable, and the prompts can be disabled entirely. Reports are anonymous, structured, timestamped, per-venue.
+- Result cards surface aggregates with honest provenance ("Step-free entry confirmed by 3 CEA users, last confirmed 2 weeks ago"; "No reports from CEA users yet") and a proactive barrier flag for mobility profiles when reports are majority-negative — never inferred from missing data.
+
+### F11 — Own-account task layer (Zapier MCP)
+- Strictly-scoped connector for the user's own calendar events, reminders, notes, personal lists, and messages they explicitly asked to send (see Principle #2d). Available to the agent (`own_account_action`) and to routine steps. Confirm-before-side-effect everywhere: the agent can only render a confirmation card; the action runs when the user taps Confirm.
 
 ## 7. AI stack decision (recommendation: Claude API via a thin proxy)
 
@@ -106,7 +131,7 @@ Rationale:
 - The agent needs reliable multi-step tool use (search places → rank per profile → construct deep link → confirm), structured JSON output for UI cards, and consistent adherence to a strict response-style contract. Cloud frontier models are dependable at this; current on-device models are not, and a flaky agent is fatal in a live demo and worse for users who depend on it.
 - Tool-use pattern: define tools (`search_places`, `geocode`, `build_handoff_link`, `save_preference`) executed client-side in Swift; the model plans, the device acts. This keeps location raw data and profile on device except what's needed in the prompt.
 - Proxy (Cloudflare Worker / tiny Vercel function) holds the API key, sets `max_tokens` low (enforces brevity), and rate-limits. **Never ship the Anthropic API key in the app bundle.** For a judged demo this proxy is ~50 lines; acceptable scope.
-- Privacy note for the deck/README: conversation text and the minimal profile context go to the LLM per-request; nothing is stored server-side. State this plainly in-app.
+- Privacy note for the deck/README: conversation text and the minimal profile context go to the LLM per-request; conversations are never stored server-side. (v1.1: the only server-side data is anonymous venue accessibility reports and vendor-synced non-sensitive preference memory — see Principle #6.) State this plainly in-app.
 - Post-MVP consideration: route trivial turns (yes/no confirmations) to on-device Apple Foundation Models for latency/cost; not MVP.
 
 ## 8. Success metrics (competition framing)
