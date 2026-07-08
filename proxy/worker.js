@@ -200,8 +200,10 @@ async function handleMemory(request, env) {
   const containerTag = "cea-" + namespace;
   const auth = { authorization: "Bearer " + env.SUPERMEMORY_API_KEY, "content-type": "application/json" };
 
-  // TODO(cea): verify current Supermemory API paths/fields against
-  // https://docs.supermemory.ai before first production use.
+  // Paths verified against supermemory.ai/docs API reference (2026-07-08):
+  // add: POST /v3/documents {content, customId, containerTag}
+  // delete one: DELETE /v3/documents/{id-or-customId} (204 on success)
+  // delete all: DELETE /v3/documents/bulk {containerTags: [tag]}
   if (op === "add") {
     const key = String(body.key || "").slice(0, 100);
     const value = String(body.value || "").slice(0, 500);
@@ -213,13 +215,19 @@ async function handleMemory(request, env) {
     });
     return json({ configured: true, ok: upstream.ok }, upstream.ok ? 200 : 502);
   }
-  if (op === "delete" || op === "delete_all") {
-    // Deletion by container tag clears everything CEA stored for this
-    // install; single-key delete uses the customId.
-    const target = op === "delete"
-      ? "https://api.supermemory.ai/v3/documents/" + encodeURIComponent(containerTag + ":" + String(body.key || ""))
-      : "https://api.supermemory.ai/v3/documents/by-tag/" + encodeURIComponent(containerTag);
+  if (op === "delete") {
+    const target = "https://api.supermemory.ai/v3/documents/" + encodeURIComponent(containerTag + ":" + String(body.key || ""));
     const upstream = await fetch(target, { method: "DELETE", headers: auth });
+    // 404 counts as done: the goal state (not stored vendor-side) holds.
+    const ok = upstream.ok || upstream.status === 404;
+    return json({ configured: true, ok }, ok ? 200 : 502);
+  }
+  if (op === "delete_all") {
+    const upstream = await fetch("https://api.supermemory.ai/v3/documents/bulk", {
+      method: "DELETE",
+      headers: auth,
+      body: JSON.stringify({ containerTags: [containerTag] }),
+    });
     return json({ configured: true, ok: upstream.ok }, upstream.ok ? 200 : 502);
   }
   return json({ error: { type: "invalid_request_error", message: "op must be add, delete, or delete_all" } }, 400);
