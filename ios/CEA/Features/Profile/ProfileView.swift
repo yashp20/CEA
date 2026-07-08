@@ -90,6 +90,14 @@ struct ProfileView: View {
                     Text("Reply Detail sets how much CEA says: terse for the fewest words, simple for short literal sentences, rich for the full picture read aloud. Automatic follows the rest of your profile.")
                 }
 
+                Section {
+                    row("Ask about places I've been", "person.2", $profile.surveyPromptsEnabled)
+                } header: {
+                    Text("Community")
+                } footer: {
+                    Text("After a hand-off, CEA may later ask one quick question about the place (step-free entry, noise, lighting). Answers are anonymous and help other CEA users. Never asked mid-errand.")
+                }
+
                 MemoryLedgerSection()
 
                 Section {

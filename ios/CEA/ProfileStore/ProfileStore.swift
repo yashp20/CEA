@@ -90,6 +90,31 @@ final class ProfileStore {
         return items.map { "- \($0.key): \($0.value)" }.joined(separator: "\n")
     }
 
+    // MARK: Crowdsource surveys (v1.1 §3.1)
+
+    /// Queues a post-visit survey after a venue hand-off. Deduped per venue;
+    /// no-op when the user turned survey prompts off. It is surfaced later
+    /// at a non-interrupting moment — never here, never mid-task.
+    func queueSurvey(venueKey: String, venueName: String, latitude: Double, longitude: Double) {
+        guard profile.surveyPromptsEnabled else { return }
+        let descriptor = FetchDescriptor<QueuedSurvey>(predicate: #Predicate { $0.venueKey == venueKey })
+        if let existing = try? context.fetch(descriptor), !existing.isEmpty {
+            // Refresh the visit time on the pending one instead of duplicating.
+            if let pending = existing.first(where: { !$0.dismissed && $0.completedAt == nil }) {
+                pending.handoffAt = .now
+                try? context.save()
+            }
+            return
+        }
+        context.insert(QueuedSurvey(venueKey: venueKey, venueName: venueName, latitude: latitude, longitude: longitude))
+        try? context.save()
+    }
+
+    func pendingSurveys() -> [QueuedSurvey] {
+        let descriptor = FetchDescriptor<QueuedSurvey>(sortBy: [SortDescriptor(\.handoffAt)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
     // MARK: Routines (v1.1 §3.2)
 
     func allRoutines() -> [Routine] {

@@ -252,6 +252,14 @@ final class AgentToolbox {
                 storeSlugAndID: DeepLinkRegistry.doordashSlug(matching: name),
                 restaurantName: name
             )
+            // §3.1: queue the post-visit accessibility survey — surfaced
+            // later at a low-pressure moment, never during this errand.
+            if let lat = input["latitude"]?.doubleValue, let lng = input["longitude"]?.doubleValue {
+                profileStore.queueSurvey(
+                    venueKey: CrowdsourceService.venueKey(name: name, latitude: lat, longitude: lng),
+                    venueName: name, latitude: lat, longitude: lng
+                )
+            }
             var payload: [String: JSONValue] = [
                 "doordash": .object([
                     "url": .string(doordash.webURL.absoluteString),

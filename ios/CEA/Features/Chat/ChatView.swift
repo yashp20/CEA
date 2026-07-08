@@ -107,6 +107,12 @@ struct ChatView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             if showsShortcuts {
+                // §3.1: the deferred survey appears here — a fresh chat is
+                // the natural, low-pressure moment; never mid-task.
+                if let survey = SurveyLogic.eligibleSurvey(from: profileStore.pendingSurveys(), profile: profile) {
+                    SurveyPromptCard(survey: survey)
+                        .padding(.top, 16)
+                }
                 ShortcutStrip(
                     profile: profile,
                     reduceMotion: reduceMotion,

@@ -181,6 +181,11 @@ private struct PlaceOptionRow: View {
     let option: PlaceOption
     let profile: AccessibilityProfile
 
+    /// §3.1: community aggregate for this venue (nil until loaded; absence
+    /// renders as "no reports yet", never a guess).
+    @State private var aggregate: CrowdAggregate?
+    @State private var aggregateLoaded = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -214,11 +219,39 @@ private struct PlaceOptionRow: View {
             // and honest "info unavailable" when the data doesn't say.
             accessibilityBadge
                 .font(.caption.weight(.medium))
+
+            // §3.1: community provenance + proactive barrier flag, from real
+            // reports only.
+            if let warning = CrowdsourceService.barrierWarning(aggregate: aggregate, profile: profile) {
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.caution(for: profile.colorBlindType, highContrast: profile.highContrast))
+            }
+            if aggregateLoaded {
+                Text(provenanceLine)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(voiceOverLabel)
+        .task {
+            guard !aggregateLoaded, let lat = option.latitude, let lng = option.longitude else { return }
+            let key = CrowdsourceService.venueKey(name: option.name, latitude: lat, longitude: lng)
+            aggregate = await CrowdsourceService.aggregate(venueKey: key)
+            aggregateLoaded = true
+            if CrowdsourceService.barrierWarning(aggregate: aggregate, profile: profile) != nil {
+                // The visible flag above is the visual twin of this heads-up.
+                Haptics.shared.play(.headsUp, enabled: profile.hapticsEnabled)
+            }
+        }
+    }
+
+    private var provenanceLine: String {
+        let attribute = CrowdsourceService.priorityAttributes(for: profile).first ?? .stepFreeEntry
+        return CrowdsourceService.provenanceLine(aggregate: aggregate, for: attribute)
     }
 
     @ViewBuilder
@@ -246,6 +279,12 @@ private struct PlaceOptionRow: View {
         case .some(true): parts.append("Wheelchair-accessible entrance")
         case .some(false): parts.append("No accessible entrance reported")
         case .none: parts.append("Accessibility info unavailable")
+        }
+        if let warning = CrowdsourceService.barrierWarning(aggregate: aggregate, profile: profile) {
+            parts.append(warning)
+        }
+        if aggregateLoaded {
+            parts.append(provenanceLine)
         }
         return parts.joined(separator: ". ")
     }
