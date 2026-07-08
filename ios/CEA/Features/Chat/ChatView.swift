@@ -116,7 +116,13 @@ struct ChatView: View {
                 ShortcutStrip(
                     profile: profile,
                     reduceMotion: reduceMotion,
-                    onSeed: { input = $0 }
+                    onSeed: { seed in
+                        input = seed
+                        UIAccessibility.post(
+                            notification: .announcement,
+                            argument: "Request started in the message box. Finish it and send."
+                        )
+                    }
                 )
                 .padding(.top, 20)
             }

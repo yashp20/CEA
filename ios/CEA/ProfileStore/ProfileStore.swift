@@ -30,6 +30,12 @@ final class ProfileStore {
             seedFromSystemSettings(into: fresh)
             try? context.save()
         }
+        // Dev/UI-walkthrough hook only (never set by real user flows):
+        // launching with -CEACompleteOnboarding jumps straight to home so
+        // simulator walkthroughs and future XCUITests can reach it.
+        if ProcessInfo.processInfo.arguments.contains("-CEACompleteOnboarding") {
+            profile.onboardingCompleted = true
+        }
     }
 
     /// Read-only seeding from UIAccessibility. Never writes system settings.

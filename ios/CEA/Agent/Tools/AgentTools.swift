@@ -61,7 +61,7 @@ final class AgentToolbox {
             ),
             ToolDefinition(
                 name: "build_handoff_link",
-                description: "Build hand-off links. kind=ride returns Uber and Lyft links with pickup/destination pre-filled. kind=food returns a DoorDash page link plus Apple Maps directions, phone, and website fallbacks. Use the returned URLs verbatim in a render_card handoff card.",
+                description: "Build hand-off links AND render the hand-off card in one step. kind=ride shows Uber and Lyft buttons with pickup/destination pre-filled; kind=food shows a DoorDash button plus directions/call/website fallbacks. The card is displayed automatically — after calling this, just narrate it briefly. Never call render_card for hand-offs.",
                 inputSchema: schema(
                     properties: [
                         "kind": propEnum("Which hand-off to build.", values: ["ride", "food"]),
@@ -120,10 +120,10 @@ final class AgentToolbox {
             ),
             ToolDefinition(
                 name: "render_card",
-                description: "Render a structured card in the chat UI. type is one of: top_three (venue list, fields: title, options[{name, summary, rating, distance_text, open_now, wheelchair_accessible, address, phone, website, latitude, longitude}]), ride_confirm (fields: summary, pickup_name, destination_name, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, note), handoff (fields: title, actions[{label, url, detail}], fallbacks[{label, url, detail}]). Options beyond 3 are dropped.",
+                description: "Render a structured card in the chat UI. type is one of: top_three (venue list, fields: title, options[{name, summary, rating, distance_text, open_now, wheelchair_accessible, address, phone, website, latitude, longitude}]), ride_confirm (fields: summary, pickup_name, destination_name, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, note). Hand-off cards are rendered automatically by build_handoff_link — never render those here. Options beyond 3 are dropped.",
                 inputSchema: schema(
                     properties: [
-                        "type": propEnum("Card type.", values: ["top_three", "ride_confirm", "handoff"]),
+                        "type": propEnum("Card type.", values: ["top_three", "ride_confirm"]),
                     ],
                     required: ["type"],
                     additionalProperties: true
@@ -142,7 +142,7 @@ final class AgentToolbox {
             case "search_places":
                 return (try await searchPlaces(input), false)
             case "build_handoff_link":
-                return (try await buildHandoffLink(input), false)
+                return (try await buildHandoffLink(input, sink: sink), false)
             case "save_preference":
                 return (savePreference(input, sink: sink), false)
             case "own_account_action":
@@ -216,7 +216,11 @@ final class AgentToolbox {
 
     // MARK: build_handoff_link
 
-    private func buildHandoffLink(_ input: JSONValue) async throws -> String {
+    /// Builds hand-off links AND renders the hand-off card itself, so the
+    /// registry-built URLs never depend on the model transcribing them into
+    /// a render_card call (bug: a mistranscribed card rendered with no
+    /// buttons). The model only narrates afterwards.
+    private func buildHandoffLink(_ input: JSONValue, sink: (AgentEvent) -> Void) async throws -> String {
         switch input["kind"]?.stringValue {
         case "ride":
             guard let pLat = input["pickup_latitude"]?.doubleValue,
@@ -231,19 +235,18 @@ final class AgentToolbox {
                                     nickname: input["destination_name"]?.stringValue, formattedAddress: nil)
             let uber = DeepLinkRegistry.uberRideLink(pickup: pickup, dropoff: dropoff)
             let lyft = DeepLinkRegistry.lyftRideLink(pickup: pickup, dropoff: dropoff)
-            return encodeJSON([
-                "uber": .object([
-                    "url": .string(uber.preferredURL().absoluteString),
-                    "installed": .bool(DeepLinkRegistry.isAppInstalled(.uber)),
-                    "detail": .string(uber.detail),
-                ]),
-                "lyft": .object([
-                    "url": .string(lyft.preferredURL().absoluteString),
-                    "installed": .bool(DeepLinkRegistry.isAppInstalled(.lyft)),
-                    "detail": .string(lyft.detail),
-                ]),
-                "note": .string("Ride-type availability (including wheelchair-accessible types) is chosen inside the ride app; do not promise availability."),
-            ])
+
+            let destination = dropoff.nickname ?? "your destination"
+            let card = HandoffCard(
+                title: "Ride to \(destination)",
+                actions: [
+                    HandoffAction(label: "Open Uber", urlString: uber.preferredURL().absoluteString, detail: uber.detail),
+                    HandoffAction(label: "Open Lyft", urlString: lyft.preferredURL().absoluteString, detail: lyft.detail),
+                ]
+            )
+            sink(.card(.handoff(card)))
+            return "The hand-off card with Uber and Lyft buttons is already displayed. Do NOT call render_card. Narrate briefly for screen-reader users: both open with the trip to \(destination) pre-filled, and the user confirms the ride in the app. Ride-type availability (including wheelchair-accessible types) is chosen inside the ride app; do not promise availability."
+
         case "food":
             let name = input["restaurant_name"]?.stringValue ?? "the restaurant"
             // Store slugs come from the registry demo set (Chicago); venues
@@ -260,31 +263,29 @@ final class AgentToolbox {
                     venueName: name, latitude: lat, longitude: lng
                 )
             }
-            var payload: [String: JSONValue] = [
-                "doordash": .object([
-                    "url": .string(doordash.webURL.absoluteString),
-                    "detail": .string(doordash.detail),
-                ]),
-            ]
+            var fallbacks: [HandoffAction] = []
             if let lat = input["latitude"]?.doubleValue, let lng = input["longitude"]?.doubleValue {
-                payload["directions"] = .object([
-                    "url": .string(DeepLinkRegistry.appleMapsDirections(latitude: lat, longitude: lng, name: name).absoluteString),
-                    "detail": .string("Walking directions in Apple Maps."),
-                ])
+                let maps = DeepLinkRegistry.appleMapsDirections(latitude: lat, longitude: lng, name: name)
+                fallbacks.append(HandoffAction(label: "Walking directions", urlString: maps.absoluteString,
+                                               detail: "Walking preview in Apple Maps — not an accessibility-verified route."))
             }
             if let phone = input["phone"]?.stringValue, let tel = DeepLinkRegistry.phoneCall(number: phone) {
-                payload["call"] = .object([
-                    "url": .string(tel.absoluteString),
-                    "detail": .string("Call \(name) directly."),
-                ])
+                fallbacks.append(HandoffAction(label: "Call \(name)", urlString: tel.absoluteString,
+                                               detail: "Calls the restaurant directly."))
             }
-            if let site = input["website"]?.stringValue, URL(string: site) != nil {
-                payload["website"] = .object([
-                    "url": .string(site),
-                    "detail": .string("Open the restaurant's website."),
-                ])
+            if let site = input["website"]?.stringValue, let url = URL(string: site), url.scheme?.hasPrefix("http") == true {
+                fallbacks.append(HandoffAction(label: "Website", urlString: site,
+                                               detail: "Opens the restaurant's website."))
             }
-            return encodeJSON(payload)
+            let card = HandoffCard(
+                title: name,
+                actions: [HandoffAction(label: "Open on DoorDash", urlString: doordash.webURL.absoluteString, detail: doordash.detail)],
+                fallbacks: fallbacks.isEmpty ? nil : fallbacks
+            )
+            sink(.card(.handoff(card)))
+            let extras = fallbacks.map(\.label).joined(separator: ", ")
+            return "The hand-off card for \(name) is already displayed with a DoorDash button\(extras.isEmpty ? "" : " plus: \(extras)"). Do NOT call render_card. Narrate briefly for screen-reader users what opens and that they finish there. \(doordash.detail)"
+
         default:
             return "Unknown hand-off kind. Use \"ride\" or \"food\"."
         }
@@ -368,6 +369,12 @@ final class AgentToolbox {
         do {
             let data = try JSONEncoder().encode(input)
             let card = try JSONDecoder().decode(CardPayload.self, from: data)
+            // Guardrail: a hand-off card with no openable link would render
+            // as an empty shell — reject it instead (build_handoff_link
+            // renders the real one mechanically).
+            if case .handoff(let handoff) = card, handoff.actions.compactMap(\.url).isEmpty {
+                return ("Hand-off cards are rendered automatically by build_handoff_link — call that instead of render_card for hand-offs.", true)
+            }
             sink(.card(card))
             return ("Card rendered.", false)
         } catch {

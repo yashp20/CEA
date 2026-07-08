@@ -175,5 +175,12 @@ struct HandoffAction: Codable, Equatable, Identifiable {
         case detail
     }
 
-    var url: URL? { URL(string: urlString) }
+    /// Lenient: falls back to percent-encoding so a space or stray character
+    /// never silently swallows a hand-off button.
+    var url: URL? {
+        if let direct = URL(string: urlString) { return direct }
+        return urlString
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+            .flatMap(URL.init(string:))
+    }
 }

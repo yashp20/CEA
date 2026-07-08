@@ -347,6 +347,14 @@ struct HandoffCardView: View {
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
 
+            if card.actions.compactMap(\.url).isEmpty {
+                // Honest failure state: never an empty shell of a card.
+                Label("I couldn't build the links for this hand-off. Ask me to try again.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
             ForEach(card.actions.prefix(3)) { action in
                 handoffButton(action, prominent: true)
             }
@@ -361,8 +369,9 @@ struct HandoffCardView: View {
                 }
             }
 
-            // One honest line, not a legal wall (PRD F4).
-            Text("CEA doesn't place orders or book rides — you confirm in the app that opens.")
+            // One honest line, not a legal wall (PRD F4) — capability-general,
+            // not just orders/rides.
+            Text("CEA never completes the action for you — you confirm in the app that opens.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

@@ -17,54 +17,49 @@ final class ShortcutUsage {
     }
 }
 
-/// A home-screen shortcut: either pre-seeds a CEA request into the composer
-/// or deep-links to an app (open only — hand-off rules apply; CEA never acts
-/// inside the other app).
+/// A home-screen shortcut. Every shortcut seeds a CEA request into the
+/// composer — the conversation is the product; shortcuts are just faster ways
+/// into it. (Revised: the v1.1 first cut also had open-the-app links here,
+/// which read as app hyperlinks rather than easier chats — removed.)
 struct CEAShortcut: Identifiable {
-    enum Kind {
-        /// Puts a request into the composer for the user to finish/send.
-        case seed(String)
-        /// Opens an app via its scheme, with a web fallback (never a dead end).
-        case openApp(appURL: URL, webURL: URL)
-    }
-
     let id: String       // usage-tracking key
     let title: String
     let icon: String
-    let kind: Kind
+    /// The request placed into the composer; the user finishes and sends.
+    let seedText: String
     let accessibilityHint: String
 
     /// The core default set (shown until usage data reorders it).
     static let defaults: [CEAShortcut] = [
         CEAShortcut(
             id: "seed-ride", title: "Ride", icon: "car.fill",
-            kind: .seed("Get me a ride to "),
+            seedText: "Get me a ride to ",
             accessibilityHint: "Starts a ride request in the message box. You finish it and send."
         ),
         CEAShortcut(
+            id: "seed-ride-home", title: "Ride home", icon: "house.fill",
+            seedText: "Get me a ride home",
+            accessibilityHint: "Puts a ride-home request in the message box, ready to send."
+        ),
+        CEAShortcut(
             id: "seed-food", title: "Food", icon: "fork.knife",
-            kind: .seed("Food nearby"),
+            seedText: "Food nearby",
             accessibilityHint: "Puts a nearby-food request in the message box, ready to send."
         ),
         CEAShortcut(
+            id: "seed-coffee", title: "Coffee", icon: "cup.and.saucer.fill",
+            seedText: "Coffee nearby",
+            accessibilityHint: "Puts a nearby-coffee request in the message box, ready to send."
+        ),
+        CEAShortcut(
             id: "seed-directions", title: "Directions", icon: "figure.walk",
-            kind: .seed("Walking directions to "),
+            seedText: "Walking directions to ",
             accessibilityHint: "Starts a directions request in the message box."
         ),
         CEAShortcut(
-            id: "app-uber", title: "Uber", icon: "arrow.up.forward.app",
-            kind: .openApp(appURL: URL(string: "uber://")!, webURL: URL(string: "https://m.uber.com")!),
-            accessibilityHint: "Opens the Uber app. CEA doesn't book anything for you."
-        ),
-        CEAShortcut(
-            id: "app-maps", title: "Maps", icon: "map",
-            kind: .openApp(appURL: URL(string: "maps://")!, webURL: URL(string: "https://maps.apple.com")!),
-            accessibilityHint: "Opens Apple Maps."
-        ),
-        CEAShortcut(
-            id: "app-doordash", title: "DoorDash", icon: "takeoutbag.and.cup.and.straw",
-            kind: .openApp(appURL: URL(string: "doordash://")!, webURL: URL(string: "https://www.doordash.com")!),
-            accessibilityHint: "Opens DoorDash. CEA doesn't order anything for you."
+            id: "seed-reminder", title: "Reminder", icon: "bell",
+            seedText: "Remind me to ",
+            accessibilityHint: "Starts a reminder request. You confirm before anything is created."
         ),
     ]
 }
@@ -83,22 +78,27 @@ enum ShortcutUsageTracker {
         try? context.save()
     }
 
-    /// Hand-off opens count toward "most-used apps" personalization.
-    static func recordHandoff(url: URL, in context: ModelContext) {
-        let key: String?
+    /// Which shortcut a hand-off open counts toward (rides → the ride seeds,
+    /// food → the food seed, maps → directions). Pure and testable.
+    nonisolated static func shortcutKey(for url: URL) -> String? {
         switch url.scheme {
-        case "uber": key = "app-uber"
-        case "lyft": key = "app-lyft"
-        case "doordash": key = "app-doordash"
+        case "uber", "lyft": return "seed-ride"
+        case "doordash": return "seed-food"
+        case "tel": return nil
         default:
             let host = url.host() ?? ""
-            if host.contains("uber.com") { key = "app-uber" }
-            else if host.contains("lyft.com") { key = "app-lyft" }
-            else if host.contains("doordash.com") { key = "app-doordash" }
-            else if host.contains("maps.apple.com") { key = "app-maps" }
-            else { key = nil }
+            if host.contains("uber.com") || host.contains("lyft.com") { return "seed-ride" }
+            if host.contains("doordash.com") { return "seed-food" }
+            if host.contains("maps.apple.com") { return "seed-directions" }
+            return nil
         }
-        if let key { record(key: key, in: context) }
+    }
+
+    /// Hand-off opens count toward shortcut personalization.
+    static func recordHandoff(url: URL, in context: ModelContext) {
+        if let key = shortcutKey(for: url) {
+            record(key: key, in: context)
+        }
     }
 }
 
@@ -112,7 +112,6 @@ struct ShortcutStrip: View {
     var onSeed: (String) -> Void
 
     @Environment(\.modelContext) private var context
-    @Environment(\.openURL) private var openURL
     @Query private var usage: [ShortcutUsage]
     @State private var bob = false
 
@@ -138,21 +137,14 @@ struct ShortcutStrip: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Shortcuts to your most-used apps and requests")
+        .accessibilityLabel("Shortcuts that start a request for you")
     }
 
     private func button(for shortcut: CEAShortcut) -> some View {
         Button {
             Haptics.shared.play(.tap, enabled: profile.hapticsEnabled)
             ShortcutUsageTracker.record(key: shortcut.id, in: context)
-            switch shortcut.kind {
-            case .seed(let text):
-                onSeed(text)
-            case .openApp(let appURL, let webURL):
-                openURL(appURL) { accepted in
-                    if !accepted { openURL(webURL) }
-                }
-            }
+            onSeed(shortcut.seedText)
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: shortcut.icon)
