@@ -1,0 +1,10 @@
+// Shared build configuration. Secrets live in Secrets.xcconfig (gitignored);
+// copy Secrets.example.xcconfig to Secrets.xcconfig and fill in real values.
+// The #include? is optional, so builds work without it (features degrade to
+// honest "not configured" states in-app).
+
+CEA_PROXY_URL =
+CEA_PLACES_API_KEY =
+CEA_ZAPIER_MCP_URL =
+
+#include? "Secrets.xcconfig"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Installed-app checks for the hand-off registry (CLAUDE.md F4). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>uber</string>
+		<string>lyft</string>
+		<string>doordash</string>
+	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CEA uses your location so "food nearby" and ride pickups know where nearby is. Only a coarse location is shared with search.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone lets you speak to CEA instead of typing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition turns what you say into a message for CEA.</string>
+	<!-- Local networking only (for the localhost dev proxy); all real traffic
+	     stays HTTPS. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- Values come from Config.xcconfig / Secrets.xcconfig (not committed). -->
+	<key>CEAProxyURL</key>
+	<string>$(CEA_PROXY_URL)</string>
+	<key>CEAPlacesAPIKey</key>
+	<string>$(CEA_PLACES_API_KEY)</string>
+	<key>CEAZapierMCPURL</key>
+	<string>$(CEA_ZAPIER_MCP_URL)</string>
+</dict>
+</plist>
