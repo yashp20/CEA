@@ -11,7 +11,7 @@ Native iOS (Swift/SwiftUI) accessibility-first AI assistant for an iOS app creat
 1. **Never implement order placement, booking, payment, or checkout against any third-party platform.** Hand-off only. (v1.1: the own-account task layer below is NOT an exception — it is scoped to the user's own calendar/reminders/notes/lists/messages and never touches a marketplace.)
 2. **Never implement scraping, headless browsing, UI automation of other apps/sites, or credential storage for third-party services.** No OpenClaw-style agents. Integrations are only: legitimate read-only APIs, documented deep/universal links, first-party Apple frameworks, or (v1.1) the user's own explicitly-connected automation endpoint (Zapier MCP) for own-account tasks — where the credentials live with the connector vendor, the app only ever holds the user-owned endpoint URL, and every side effect is confirmed by the user before it runs.
 3. **Never fake a capability in UI or demo code paths** (no hardcoded "order placed!" states, no invented menu data, no pretend wheelchair-routing). If data is unavailable, say so in the UI.
-4. **Never ship the Anthropic API key in the app.** All LLM calls go through the proxy.
+4. **Never ship the OpenAI API key in the app.** All LLM calls go through the proxy.
 5. **Accessibility criteria in PRD §9 are launch-blocking.** New UI must ship with labels/Dynamic Type/contrast support in the same PR, not "later."
 6. **Copy rules:** capability-based language ("for apps that support link hand-off…"), never guaranteed behavior of a named third-party app; short/calm agent voice (≤3 sentences default, max 3 options, one question at a time).
 
@@ -42,9 +42,10 @@ Native iOS (Swift/SwiftUI) accessibility-first AI assistant for an iOS app creat
                              #   Speech (streaming TTS), Crowdsource, ZapierMCP
 
 [Proxy — separate tiny repo/dir: /proxy]
-  Cloudflare Worker: holds ANTHROPIC_API_KEY (and SUPERMEMORY_API_KEY),
-  forwards /v1/messages with enforced model + max_tokens, streaming
-  pass-through, per-client rate limit. Conversations are NEVER persisted.
+  Cloudflare Worker: holds OPENAI_API_KEY (and SUPERMEMORY_API_KEY),
+  TRANSLATES the app's Anthropic Messages format to the OpenAI Chat
+  Completions API with enforced model (gpt-4o) + max_tokens, streaming
+  SSE translation, per-client rate limit. Conversations are NEVER persisted.
   v1.1 storage exception: POST/GET /reports keeps ANONYMOUS per-venue
   accessibility reports (attribute + yes/no + timestamp; no user IDs,
   no profile data, no IPs) in KV. POST /memory forwards non-sensitive
@@ -52,8 +53,8 @@ Native iOS (Swift/SwiftUI) accessibility-first AI assistant for an iOS app creat
 ```
 
 ### Agent loop (client-side tool execution)
-1. App sends: system prompt (style contract + verbosity directives + serialized accessibility profile + preference memory) + transcript + user turn → proxy → Claude (claude-sonnet-4-6, tool use enabled), **streamed over SSE** (v1.1 §3.5: instant on-send acknowledgment, first tokens render live, TTS starts on the first completed sentence).
-2. Claude returns text and/or tool_use blocks. Tools are executed **in Swift on device** (MapKit geocoding, Places HTTP call, registry link construction, memory write, routine open, own-account confirmation card). Results are returned as tool_result; loop until final text.
+1. App sends: system prompt (style contract + verbosity directives + serialized accessibility profile + preference memory) + transcript + user turn → proxy → OpenAI (gpt-4o, function calling enabled; the proxy translates to/from the Chat Completions API), **streamed over SSE** (v1.1 §3.5: instant on-send acknowledgment, first tokens render live, TTS starts on the first completed sentence).
+2. The model returns text and/or tool_use blocks (translated back from OpenAI tool calls). Tools are executed **in Swift on device** (MapKit geocoding, Places HTTP call, registry link construction, memory write, routine open, own-account confirmation card). Results are returned as tool_result; loop until final text.
 3. Final text renders as chat message; structured card payloads (top-3 list, ride confirm, hand-off card, own-account confirm) come back as a JSON tool ("render_card" / emitted by tools) so UI never regex-parses prose.
 4. Enforce style contract mechanically too: max_tokens on proxy, truncate option lists to 3 in the card renderer, and ResponseShaper's per-profile sentence caps applied to final text — all regardless of model output.
 5. Side-effect rule: `own_account_action` never executes inside the tool loop. It renders a confirmation card; the call to the user's Zapier endpoint fires only on the user's Confirm tap.
@@ -86,7 +87,7 @@ Native iOS (Swift/SwiftUI) accessibility-first AI assistant for an iOS app creat
 
 - Xcode 16+, iOS 17 minimum target (SwiftData, latest accessibility APIs). Swift 5.10+. SwiftUI only, no UIKit unless a specific accessibility behavior requires a representable wrapper (document why).
 - No third-party Swift dependencies unless justified in PR (goal: zero for MVP).
-- Secrets: Places key in an `.xcconfig` not committed; proxy URL in Info.plist; ANTHROPIC_API_KEY only in proxy env.
+- Secrets: Places key in an `.xcconfig` not committed; proxy URL in Info.plist; OPENAI_API_KEY only in proxy env.
 - Tests: unit tests for DeepLinkRegistry URL construction (every platform × param combo), profile serialization into system prompt, card JSON decoding, and (v1.1) verbosity shaping per profile (ResponseShaperTests), crowdsource report/provenance/survey-timing logic (CrowdsourceTests), routine step execution (RoutineEngineTests), and the memory privacy split — sensitive profile fields never leave the device (MemoryPrivacyTests). UI tests: one VoiceOver-path smoke test per vertical using XCUIApplication with accessibility identifiers (still TODO).
 
 ## MCP servers (Model Context Protocol) for developing this project in Claude Code
@@ -96,7 +97,7 @@ Configure in `.mcp.json` at repo root (see file). Recommended:
 - **Figma MCP (official Dev Mode server)** — pull the CEA Figma frames (Chats list, Chat, Profile, Map screens) for pixel-accurate SwiftUI implementation. Requires Figma desktop app / token on the dev machine.
 - Do NOT add MCP servers that automate third-party consumer platforms (see Non-negotiable #2) — that constraint applies to dev tooling used to generate app behavior, not just app code.
 
-Note: MCP as dev-time tooling for Claude Code is unrelated to the shipped app's agent loop (Claude Messages API with client-executed tools). v1.1 exception: the shipped app contains one narrowly-scoped MCP *client* — the §4 own-account connector to the user's own Zapier MCP endpoint. It automates nothing of CEA's behavior and never touches third-party consumer platforms on the user's behalf beyond their own accounts, with per-action confirmation.
+Note: MCP as dev-time tooling for Claude Code is unrelated to the shipped app's agent loop (OpenAI via the translating proxy, with client-executed tools). v1.1 exception: the shipped app contains one narrowly-scoped MCP *client* — the §4 own-account connector to the user's own Zapier MCP endpoint. It automates nothing of CEA's behavior and never touches third-party consumer platforms on the user's behalf beyond their own accounts, with per-action confirmation.
 
 ## Agent voice — system prompt requirements (keep in SystemPrompt.swift)
 

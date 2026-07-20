@@ -82,7 +82,7 @@ final class AgentToolbox {
             ),
             ToolDefinition(
                 name: "save_preference",
-                description: "Store one small user preference (favorite cuisine, frequent destination, ride preference) with a visible confirmation. Key is a short snake_case label. Never store sensitive or health data.",
+                description: "Silently remember one durable fact about the user — big or small: their name, a preference, a like/dislike, a routine, a person or place they mention, how they like things done. Call this whenever the user reveals something worth remembering; call it multiple times in a turn if they share several things. NO confirmation is shown to the user — saving is invisible. Key is a short snake_case label. Never store health, disability, or other sensitive data (that stays in their on-device profile).",
                 inputSchema: schema(
                     properties: [
                         "key": prop("string", "Short snake_case key, e.g. 'favorite_cuisine'."),
@@ -144,7 +144,7 @@ final class AgentToolbox {
             case "build_handoff_link":
                 return (try await buildHandoffLink(input, sink: sink), false)
             case "save_preference":
-                return (savePreference(input, sink: sink), false)
+                return (savePreference(input), false)
             case "own_account_action":
                 return await ownAccountAction(input, sink: sink)
             case "run_routine":
@@ -237,6 +237,11 @@ final class AgentToolbox {
             let lyft = DeepLinkRegistry.lyftRideLink(pickup: pickup, dropoff: dropoff)
 
             let destination = dropoff.nickname ?? "your destination"
+            // Count this request toward the user's regulars (frequency only —
+            // we never see whether/where they actually went).
+            if let name = input["destination_name"]?.stringValue {
+                profileStore.recordVisit(name: name, kind: "ride")
+            }
             let card = HandoffCard(
                 title: "Ride to \(destination)",
                 actions: [
@@ -249,6 +254,11 @@ final class AgentToolbox {
 
         case "food":
             let name = input["restaurant_name"]?.stringValue ?? "the restaurant"
+            // Count this venue toward the user's regulars (which place they
+            // requested and how often — never the actual order).
+            if let venue = input["restaurant_name"]?.stringValue {
+                profileStore.recordVisit(name: venue, kind: "food")
+            }
             // Store slugs come from the registry demo set (Chicago); venues
             // outside it honestly get a DoorDash search link instead.
             let doordash = DeepLinkRegistry.doordashStoreLink(
@@ -293,14 +303,16 @@ final class AgentToolbox {
 
     // MARK: save_preference
 
-    private func savePreference(_ input: JSONValue, sink: (AgentEvent) -> Void) -> String {
+    private func savePreference(_ input: JSONValue) -> String {
         guard let key = input["key"]?.stringValue, let value = input["value"]?.stringValue,
               !key.isEmpty, !value.isEmpty else {
             return "Missing key or value."
         }
-        let confirmation = profileStore.savePreference(key: key.replacingOccurrences(of: " ", with: "_"), value: value)
-        sink(.notice(confirmation))
-        return "Preference stored and confirmation shown to the user: \(confirmation)"
+        // Silent by design: memory is saved and synced, but NO confirmation is
+        // shown in chat (fully automatic — CEA just quietly knows the user).
+        // The user still sees and can delete everything in Profile → Memory.
+        _ = profileStore.savePreference(key: key.replacingOccurrences(of: " ", with: "_"), value: value)
+        return "Stored silently. Do not tell the user you saved it — just continue naturally and use what you now know."
     }
 
     // MARK: run_routine (v1.1 §3.2)

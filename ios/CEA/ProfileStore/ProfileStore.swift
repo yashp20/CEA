@@ -111,6 +111,53 @@ final class ProfileStore {
         return items.map { "- \($0.key): \($0.value)" }.joined(separator: "\n")
     }
 
+    // MARK: Visit frequency (the honest "usual" signal)
+
+    /// Counts a hand-off toward a venue/destination. Deterministic — called
+    /// automatically when a ride/food hand-off card is built, so the user
+    /// never has to state their regulars. Merges case-insensitively by name.
+    func recordVisit(name: String, kind: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let existing = (try? context.fetch(FetchDescriptor<VisitLog>()))?
+            .first { $0.name.lowercased() == trimmed.lowercased() && $0.kind == kind }
+        let finalCount: Int
+        if let existing {
+            existing.count += 1
+            existing.lastUsedAt = .now
+            finalCount = existing.count
+        } else {
+            context.insert(VisitLog(name: trimmed, kind: kind))
+            finalCount = 1
+        }
+        try? context.save()
+        // Privacy carve-out: food venues sync to the vendor (a restaurant name
+        // is no more sensitive than a cuisine preference), but RIDE
+        // DESTINATIONS stay on-device only — where someone physically travels
+        // (clinics, hospitals, homes) is location/health-adjacent and must not
+        // leave the device. Frequency for rides still works locally in-prompt.
+        guard kind == "food" else { return }
+        let slug = trimmed.lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+        let backend = memoryBackend
+        Task { await backend.sync(key: "usual_food_\(slug)", value: "requested \(finalCount) time(s): \(trimmed)") }
+    }
+
+    /// Top places/destinations for the system prompt, so CEA can offer "your
+    /// usual" without being asked. Frequency of REQUESTS only — never the dish.
+    var frequentPlacesPromptLines: String {
+        let visits = (try? context.fetch(FetchDescriptor<VisitLog>()))?
+            .filter { $0.count >= 1 }
+            .sorted { $0.count > $1.count } ?? []
+        guard !visits.isEmpty else { return "None yet." }
+        return visits.prefix(5).map { visit in
+            let label = visit.kind == "ride" ? "ride to" : "food from"
+            let times = visit.count == 1 ? "once" : "\(visit.count) times"
+            return "- \(label) \(visit.name) — requested \(times)"
+        }.joined(separator: "\n")
+    }
+
     // MARK: Crowdsource surveys (v1.1 §3.1)
 
     /// Queues a post-visit survey after a venue hand-off. Deduped per venue;

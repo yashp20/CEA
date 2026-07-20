@@ -13,7 +13,7 @@ Source of truth: [docs/PRD.md](docs/PRD.md) (product) and
 
 ```
 ios/      SwiftUI app (Xcode 16+, iOS 17+, SwiftData, zero third-party deps)
-proxy/    Cloudflare Worker: holds the Anthropic API key, enforces model +
+proxy/    Cloudflare Worker: holds the OpenAI API key, enforces model +
           max_tokens, rate-limits. The app's only backend. No storage.
 docs/     PRD + engineering guide
 ```
@@ -21,7 +21,7 @@ docs/     PRD + engineering guide
 ## Getting started
 
 1. **Proxy** — deploy `proxy/` (see [proxy/README.md](proxy/README.md)) and
-   set `ANTHROPIC_API_KEY` as a Worker secret. The key never ships in the app.
+   set `OPENAI_API_KEY` as a Worker secret. The key never ships in the app.
 2. **Secrets** — copy `ios/Secrets.example.xcconfig` to `ios/Secrets.xcconfig`
    (gitignored) and fill in:
    - `CEA_PROXY_URL` — the deployed Worker URL

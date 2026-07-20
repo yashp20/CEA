@@ -139,58 +139,96 @@ struct ProfileView: View {
     }
 }
 
-/// The visible memory ledger (PRD F3): everything the agent has remembered,
-/// each entry deletable, plus delete-all.
+/// Compact Memory entry point: a single tappable row that pushes the full
+/// list, so the ledger never fills up the Profile page. The count gives an
+/// at-a-glance sense of how much CEA has learned.
 struct MemoryLedgerSection: View {
+    @Query private var memories: [PreferenceMemory]
+
+    var body: some View {
+        Section {
+            NavigationLink {
+                MemoryDetailView()
+            } label: {
+                HStack {
+                    Label("Saved memories", systemImage: "brain.head.profile")
+                    Spacer()
+                    Text("\(memories.count)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityHint("Everything CEA has remembered about you. Tap to view or delete.")
+        } header: {
+            Text("Memory")
+        } footer: {
+            Text("Things CEA has picked up as you chat. Your accessibility profile is never in here — it stays on this device only.")
+        }
+    }
+}
+
+/// The full memory ledger (PRD F3), on its own screen: everything the agent
+/// has remembered, each entry deletable, plus delete-all.
+struct MemoryDetailView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Query(sort: \PreferenceMemory.createdAt, order: .reverse) private var memories: [PreferenceMemory]
     @State private var confirmingDeleteAll = false
 
     var body: some View {
-        Section {
+        List {
             if memories.isEmpty {
-                Text("Nothing saved yet. When CEA remembers a preference, it shows up here — and it always tells you in chat first.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                ContentUnavailableView(
+                    "Nothing saved yet",
+                    systemImage: "brain.head.profile",
+                    description: Text("As you chat, CEA quietly remembers preferences and details here — and you can delete any of it, anytime.")
+                )
             } else {
-                ForEach(memories) { memory in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(memory.key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.body.weight(.medium))
-                        Text(memory.value)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text(memory.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                Section {
+                    ForEach(memories) { memory in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(memory.key.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(.body.weight(.medium))
+                            Text(memory.value)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(memory.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .accessibilityElement(children: .combine)
                     }
-                    .accessibilityElement(children: .combine)
-                }
-                .onDelete { offsets in
-                    for index in offsets {
-                        profileStore.deleteMemory(memories[index])
+                    .onDelete { offsets in
+                        for index in offsets {
+                            profileStore.deleteMemory(memories[index])
+                        }
                     }
+                } footer: {
+                    Text("Swipe an item to delete it; deleting removes it from the memory service too.")
                 }
 
-                Button(role: .destructive) {
-                    confirmingDeleteAll = true
-                } label: {
-                    Label("Delete all memory", systemImage: "trash")
-                }
-                .confirmationDialog(
-                    "Delete everything CEA has remembered?",
-                    isPresented: $confirmingDeleteAll,
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete all memory", role: .destructive) {
-                        profileStore.deleteAllMemory()
+                Section {
+                    Button(role: .destructive) {
+                        confirmingDeleteAll = true
+                    } label: {
+                        Label("Delete all memory", systemImage: "trash")
                     }
                 }
             }
-        } header: {
-            Text("Memory")
-        } footer: {
-            Text("Swipe an item to delete it; deleting removes it from the memory service too. Memory never includes health details or anything sensitive — your accessibility profile never leaves this device.")
+        }
+        .navigationTitle("Saved memories")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !memories.isEmpty {
+                EditButton()
+            }
+        }
+        .confirmationDialog(
+            "Delete everything CEA has remembered?",
+            isPresented: $confirmingDeleteAll,
+            titleVisibility: .visible
+        ) {
+            Button("Delete all memory", role: .destructive) {
+                profileStore.deleteAllMemory()
+            }
         }
     }
 }

@@ -141,6 +141,10 @@ struct ChatView: View {
 
         let history = session.sortedMessages
         append(ChatMessage(role: .user, text: text))
+        // Reliable silent memory: a dedicated pass extracts durable facts from
+        // every message and saves them, so memory doesn't depend on the main
+        // agent remembering to call the tool. Runs in parallel; never blocks.
+        Task { await MemoryExtractor.extract(from: text, into: profileStore) }
         if session.title == "New chat" {
             session.title = String(text.prefix(40))
         }

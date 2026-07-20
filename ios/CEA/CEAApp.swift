@@ -10,7 +10,7 @@ struct CEAApp: App {
         do {
             let container = try ModelContainer(
                 for: AccessibilityProfile.self, PreferenceMemory.self, ChatSession.self, ChatMessage.self,
-                ShortcutUsage.self, Routine.self, RoutineStep.self, QueuedSurvey.self
+                ShortcutUsage.self, Routine.self, RoutineStep.self, QueuedSurvey.self, VisitLog.self
             )
             self.container = container
             self._profileStore = State(initialValue: ProfileStore(context: container.mainContext))

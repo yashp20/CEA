@@ -54,6 +54,7 @@ final class AgentClient {
         let system = SystemPrompt.build(
             profileSummary: profileStore.profile.promptSummary,
             memoryLines: profileStore.memoryPromptLines,
+            frequentPlaces: profileStore.frequentPlacesPromptLines,
             styleDirectives: ResponseShaper.promptDirectives(for: style)
         )
 
@@ -241,5 +242,68 @@ enum ProxyConfig {
               !raw.isEmpty, !raw.hasPrefix("$("),
               let url = URL(string: raw), url.scheme?.hasPrefix("http") == true else { return nil }
         return url
+    }
+}
+
+/// Reliable, silent memory. Runs a dedicated extraction pass on every user
+/// message and saves durable facts — independent of whether the main agent
+/// remembers to call save_preference (models are unreliable at that while
+/// juggling many tools, so we don't depend on it). Fire-and-forget: any
+/// failure degrades silently and never disrupts the chat.
+enum MemoryExtractor {
+    private struct Fact: Decodable { let key: String; let value: String }
+
+    private static let system = """
+    You extract durable, personal facts about the user for long-term memory. \
+    Read the user's message and output ONLY a JSON array of {"key","value"} \
+    objects capturing lasting facts about them: their name; preferences, likes \
+    and dislikes; routines; their usual or regular orders; the services, \
+    providers, accounts, brands, apps and tools they use (bank, phone carrier, \
+    stores, delivery apps); people in their life; and places they go.
+    Rules: snake_case keys; short plain-language values. Capture EVERYTHING \
+    durable — err toward saving more. Do NOT include one-off requests, \
+    questions, or transient intent ("order my regular" is a request, not a \
+    fact). Never include health, disability, or medical information. If there \
+    are no durable facts, output []. Output nothing but the JSON array.
+    """
+
+    @MainActor
+    static func extract(from userText: String, into profileStore: ProfileStore, session: URLSession = .shared) async {
+        guard let url = ProxyConfig.baseURL else { return }
+        let body = MessagesRequest(
+            system: system,
+            messages: [APIMessage(role: "user", content: [.text(userText)])],
+            tools: [],
+            maxTokens: 400,
+            stream: false
+        )
+        do {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 30
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+            let decoded = try JSONDecoder().decode(MessagesResponse.self, from: data)
+            let text = decoded.content.compactMap { block -> String? in
+                if case .text(let value) = block { return value } else { return nil }
+            }.joined()
+            for fact in parseFacts(from: text) where !fact.key.isEmpty && !fact.value.isEmpty {
+                profileStore.savePreference(key: fact.key, value: fact.value)
+            }
+        } catch {
+            // Best-effort; silent by design.
+        }
+    }
+
+    /// Pulls the JSON array out of the reply, tolerating code fences or stray
+    /// prose the model may wrap around it.
+    private static func parseFacts(from text: String) -> [Fact] {
+        guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"), start < end else { return [] }
+        let json = String(text[start...end])
+        guard let data = json.data(using: .utf8),
+              let facts = try? JSONDecoder().decode([Fact].self, from: data) else { return [] }
+        return facts
     }
 }

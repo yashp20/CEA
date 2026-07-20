@@ -123,14 +123,14 @@ Primary personas for MVP (each maps to a demo moment):
 ### F11 — Own-account task layer (Zapier MCP)
 - Strictly-scoped connector for the user's own calendar events, reminders, notes, personal lists, and messages they explicitly asked to send (see Principle #2d). Available to the agent (`own_account_action`) and to routine steps. Confirm-before-side-effect everywhere: the agent can only render a confirmation card; the action runs when the user taps Confirm.
 
-## 7. AI stack decision (recommendation: Claude API via a thin proxy)
+## 7. AI stack decision (OpenAI API via a thin proxy)
 
-**Decision: Claude API (claude-sonnet-4-6) with tool use, called through a minimal serverless proxy. Not on-device Apple models for the core agent.**
+**Decision: OpenAI API (gpt-4o) with function calling, called through a minimal serverless proxy. Not on-device Apple models for the core agent.** (Aligns with Apple Intelligence's ChatGPT integration.) The app internally speaks the Anthropic Messages format and the proxy translates it to the OpenAI Chat Completions API — an implementation detail that keeps the agent code provider-agnostic and swappable.
 
 Rationale:
 - The agent needs reliable multi-step tool use (search places → rank per profile → construct deep link → confirm), structured JSON output for UI cards, and consistent adherence to a strict response-style contract. Cloud frontier models are dependable at this; current on-device models are not, and a flaky agent is fatal in a live demo and worse for users who depend on it.
 - Tool-use pattern: define tools (`search_places`, `geocode`, `build_handoff_link`, `save_preference`) executed client-side in Swift; the model plans, the device acts. This keeps location raw data and profile on device except what's needed in the prompt.
-- Proxy (Cloudflare Worker / tiny Vercel function) holds the API key, sets `max_tokens` low (enforces brevity), and rate-limits. **Never ship the Anthropic API key in the app bundle.** For a judged demo this proxy is ~50 lines; acceptable scope.
+- Proxy (Cloudflare Worker / tiny Vercel function) holds the API key, sets `max_tokens` low (enforces brevity), and rate-limits. **Never ship the OpenAI API key in the app bundle.** For a judged demo this proxy is small; acceptable scope.
 - Privacy note for the deck/README: conversation text and the minimal profile context go to the LLM per-request; conversations are never stored server-side. (v1.1: the only server-side data is anonymous venue accessibility reports and vendor-synced non-sensitive preference memory — see Principle #6.) State this plainly in-app.
 - Post-MVP consideration: route trivial turns (yes/no confirmations) to on-device Apple Foundation Models for latency/cost; not MVP.
 
@@ -165,7 +165,7 @@ Rationale:
 ## 11. Milestones (adjust to competition deadline)
 
 1. **M0 — Skeleton (week 1):** SwiftUI shell (Chats list, Chat, Profile per Figma), profile store, system-accessibility seeding.
-2. **M1 — Agent loop (week 2):** proxy up, Claude tool-use round trip, response-style contract enforced, chat persistence.
+2. **M1 — Agent loop (week 2):** proxy up, OpenAI tool-use round trip, response-style contract enforced, chat persistence.
 3. **M2 — Vertical A (week 3):** geocoding, Uber/Lyft registry entries, ride confirm card, hand-off tested on device.
 4. **M3 — Vertical B (week 4):** Places search tool, top-3 ranking with profile filters, DoorDash right-page hand-off, embedded map.
 5. **M4 — Onboarding + adaptive UI (week 5):** live-preview onboarding, all profile toggles wired.
