@@ -82,6 +82,14 @@ final class AccessibilityProfile {
     /// Whether the queued accessibility surveys (§3.1) may be shown at all.
     var surveyPromptsEnabled: Bool = true
 
+    // Identity — user-set, on-device (like the rest of this model, it is never
+    // synced to the memory vendor). The name lets CEA address the user, but
+    // sparingly: see SystemPrompt for the "only when it helps" rule.
+    var displayName: String = ""
+    var bio: String = ""
+    /// Profile photo, stored outside the main store file to keep it light.
+    @Attribute(.externalStorage) var avatarData: Data?
+
     // Bookkeeping
     var onboardingCompleted: Bool
     var createdAt: Date
@@ -143,6 +151,17 @@ extension AccessibilityProfile {
     /// the hearing profile implies them even without the explicit toggle.
     var hapticsEnabled: Bool {
         hapticConfirmations || hearingImpaired
+    }
+
+    /// Who the user is, for the system prompt. Empty fields are simply omitted
+    /// so CEA never refers to a name or bio the user hasn't set.
+    var identitySummary: String {
+        var parts: [String] = []
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let about = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty { parts.append("The user's name is \(name).") }
+        if !about.isEmpty { parts.append("In their own words: \(about)") }
+        return parts.isEmpty ? "The user hasn't set a name or bio." : parts.joined(separator: " ")
     }
 
     /// Plain-language summary injected into the system prompt (PRD F3).

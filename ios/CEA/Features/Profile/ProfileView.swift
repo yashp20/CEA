@@ -1,5 +1,7 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Profile surface (PRD F5): every onboarding toggle lives here and applies
 /// app-wide instantly (the profile model is observable). System settings
@@ -9,6 +11,7 @@ import SwiftUI
 /// it renders inside the parent NavigationStack.
 struct ProfileView: View {
     @Environment(ProfileStore.self) private var profileStore
+    @State private var pickedPhoto: PhotosPickerItem?
 
     var body: some View {
         @Bindable var profile = profileStore.profile
@@ -17,20 +20,46 @@ struct ProfileView: View {
             List {
                 Section {
                     HStack(spacing: 14) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 52))
-                            .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Your profile")
-                                .font(.title3.bold())
-                            Text("Stored only on this device. CEA uses it to adapt every reply.")
+                        PhotosPicker(selection: $pickedPhoto, matching: .images) {
+                            avatar(for: profile)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(profile.avatarData == nil ? "Add a profile photo" : "Change profile photo")
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            TextField("Your name", text: $profile.displayName)
+                                .font(.title3.weight(.semibold))
+                                .textInputAutocapitalization(.words)
+                                .accessibilityLabel("Your name")
+                            Text("Tap the photo to change it")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                     }
                     .padding(.vertical, 4)
-                    .accessibilityElement(children: .combine)
+
+                    TextField(
+                        "A short bio — anything you'd like CEA to know about you",
+                        text: $profile.bio,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...5)
+                    .font(.subheadline)
+                    .accessibilityLabel("Your bio")
+
+                    if profile.avatarData != nil {
+                        Button(role: .destructive) {
+                            profile.avatarData = nil
+                            profileStore.save()
+                        } label: {
+                            Label("Remove photo", systemImage: "person.crop.circle.badge.xmark")
+                        }
+                    }
+                } header: {
+                    Text("You")
+                } footer: {
+                    Text("Stored only on this device. CEA uses your name sparingly — just where a person naturally would.")
                 }
 
                 Section {
@@ -113,6 +142,36 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .onChange(of: profileSnapshot) { profileStore.save() }
+            // Name/bio are free text, so persist them on edit too.
+            .onChange(of: profileStore.profile.displayName) { profileStore.save() }
+            .onChange(of: profileStore.profile.bio) { profileStore.save() }
+            .onChange(of: pickedPhoto) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        profileStore.profile.avatarData = data
+                        profileStore.save()
+                    }
+                }
+            }
+        }
+    }
+
+    /// The profile photo, or a branded placeholder when none is set.
+    @ViewBuilder
+    private func avatar(for profile: AccessibilityProfile) -> some View {
+        if let data = profile.avatarData, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 62, height: 62)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(Color(.systemGray4), lineWidth: 1))
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                .frame(width: 62, height: 62)
         }
     }
 

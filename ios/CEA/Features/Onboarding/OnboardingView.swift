@@ -1,5 +1,7 @@
 import CoreLocation
+import PhotosUI
 import SwiftUI
+import UIKit
 import UserNotifications
 
 /// Onboarding (PRD F1): ≤5 screens, one plain question each, seeded from
@@ -11,6 +13,7 @@ struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     @State private var page = 0
+    @State private var pickedPhoto: PhotosPickerItem?
     private let pageCount = 5
 
     private var profile: AccessibilityProfile { profileStore.profile }
@@ -28,7 +31,7 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: Theme.spacing * 1.5) {
                     Group {
                         switch page {
-                        case 0: welcomePage
+                        case 0: welcomePage(profile: $profile)
                         case 1: readingPage(profile: $profile)
                         case 2: hearingPage(profile: $profile)
                         case 3: mobilityPage(profile: $profile)
@@ -53,7 +56,19 @@ struct OnboardingView: View {
         }
         .background(Theme.screenBackground)
         // Keyboard never survives a step change.
-        .onChange(of: page) { dismissKeyboard() }
+        .onChange(of: page) {
+            dismissKeyboard()
+            profileStore.save()   // persist any name/bio typed on this step
+        }
+        .onChange(of: pickedPhoto) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    profileStore.profile.avatarData = data
+                    profileStore.save()
+                }
+            }
+        }
     }
 
     // MARK: Chrome
@@ -118,21 +133,104 @@ struct OnboardingView: View {
 
     // MARK: Pages (one plain question each)
 
-    private var welcomePage: some View {
+    /// Welcome + introductions. Identity lives here rather than on its own
+    /// screen so setup stays within the ≤5-screen / ≤90-second budget (PRD F1,
+    /// §8) — and "Hi, I'm CEA … and you are?" reads like a real introduction.
+    /// Every field is optional; Next and Skip both work with all of it blank.
+    private func welcomePage(profile: Bindable<AccessibilityProfile>) -> some View {
         VStack(alignment: .leading, spacing: Theme.spacing) {
             Text("Hi, I'm CEA.")
                 .font(.largeTitle.weight(.bold))
                 .accessibilityAddTraits(.isHeader)
             Text("One conversation for everyday errands — rides and food — handed off to the real app. You always confirm the final step yourself.")
                 .font(.title3)
-            Text("A few quick questions make CEA fit how you read, hear, and get around. Your answers stay on this device and are editable anytime.")
+
+            // Same visual language as the toggle steps: a bold question, then
+            // card rows sitting on the screen background.
+            Text("What should I call you?")
+                .font(.title2.weight(.bold))
+                .accessibilityAddTraits(.isHeader)
+
+            HStack(spacing: 14) {
+                PhotosPicker(selection: $pickedPhoto, matching: .images) {
+                    onboardingAvatar(for: profileStore.profile)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(profileStore.profile.avatarData == nil
+                                    ? "Add a profile photo, optional"
+                                    : "Change profile photo")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    TextField("Your name", text: profile.displayName)
+                        .textInputAutocapitalization(.words)
+                        .font(.body)
+                        .accessibilityLabel("Your name, optional")
+                    Text(profileStore.profile.avatarData == nil
+                         ? "Optional — tap the circle to add a photo"
+                         : "Tap the photo to change it")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(12)
+            .frame(minHeight: Theme.minTapTarget)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("About you", systemImage: "text.quote")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField(
+                    "Anything you'd like me to know (optional)",
+                    text: profile.bio,
+                    axis: .vertical
+                )
+                .lineLimit(2...4)
                 .font(.body)
+                .accessibilityLabel("A short bio, optional")
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTapTarget, alignment: .leading)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+
+            Text("All optional, and editable anytime in Profile. Your answers stay on this device.")
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-            if UIAccessibility.isVoiceOverRunning || profile.largerText || profile.highContrast || profile.reduceMotion {
+
+            if UIAccessibility.isVoiceOverRunning || profileStore.profile.largerText
+                || profileStore.profile.highContrast || profileStore.profile.reduceMotion {
                 Label("We pre-filled some answers from your system accessibility settings — just confirm them.", systemImage: "wand.and.stars")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// Photo well for onboarding: the chosen picture, or a tappable placeholder
+    /// that reads as "add a photo" rather than a decorative icon.
+    @ViewBuilder
+    private func onboardingAvatar(for profile: AccessibilityProfile) -> some View {
+        if let data = profile.avatarData, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 66, height: 66)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(Color(.systemGray4), lineWidth: 1))
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(.systemGray6))
+                    .frame(width: 66, height: 66)
+                Image(systemName: "camera.fill")
+                    .font(.title3)
+                    .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+            }
+            .overlay(
+                Circle().strokeBorder(Color(.systemGray4), style: StrokeStyle(lineWidth: 1, dash: [4]))
+                    .frame(width: 66, height: 66)
+            )
         }
     }
 

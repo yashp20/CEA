@@ -54,6 +54,7 @@ final class AgentClient {
         let system = SystemPrompt.build(
             profileSummary: profileStore.profile.promptSummary,
             memoryLines: profileStore.memoryPromptLines,
+            identity: profileStore.profile.identitySummary,
             frequentPlaces: profileStore.frequentPlacesPromptLines,
             styleDirectives: ResponseShaper.promptDirectives(for: style)
         )
@@ -254,25 +255,49 @@ enum MemoryExtractor {
     private struct Fact: Decodable { let key: String; let value: String }
 
     private static let system = """
-    You extract durable, personal facts about the user for long-term memory. \
-    Read the user's message and output ONLY a JSON array of {"key","value"} \
-    objects capturing lasting facts about them: their name; preferences, likes \
-    and dislikes; routines; their usual or regular orders; the services, \
-    providers, accounts, brands, apps and tools they use (bank, phone carrier, \
-    stores, delivery apps); people in their life; and places they go.
+    You maintain a long-term memory of durable, personal facts about the user. \
+    You are given what is already known plus the user's new message, and you \
+    output ONLY a JSON array of {"key","value"} objects for facts to add or \
+    update: their name; preferences, likes and dislikes; hobbies and interests; \
+    routines; their usual or regular orders; the services, providers, accounts, \
+    brands, apps and tools they use (bank, phone carrier, stores, delivery \
+    apps); people in their life; and places they go.
+
+    Merging with what's already known (important):
+    - If the message ADDS to something already known — another hobby, another \
+    favourite food, another regular place — output that key with the COMBINED \
+    value, keeping the old entries and appending the new one \
+    (e.g. "hobbies": "pickleball, badminton"). NEVER drop something already \
+    known just because the new message didn't repeat it.
+    - Use plural keys for things people can have several of (hobbies, \
+    favourite_foods, favourite_stores) so they accumulate naturally.
+    - Only if the message clearly CORRECTS or replaces a fact (they switched \
+    banks, moved city, changed their usual order) output that key with just \
+    the new value.
+    - Output only keys you are adding or changing; omit unchanged facts.
+
     Rules: snake_case keys; short plain-language values. Capture EVERYTHING \
     durable — err toward saving more. Do NOT include one-off requests, \
     questions, or transient intent ("order my regular" is a request, not a \
     fact). Never include health, disability, or medical information. If there \
-    are no durable facts, output []. Output nothing but the JSON array.
+    is nothing to add or change, output []. Output nothing but the JSON array.
     """
 
     @MainActor
     static func extract(from userText: String, into profileStore: ProfileStore, session: URLSession = .shared) async {
         guard let url = ProxyConfig.baseURL else { return }
+        // Pass what's already known so the model merges (appends another hobby)
+        // instead of silently overwriting a key.
+        let content = """
+        Already known about this user:
+        \(profileStore.memoryPromptLines)
+
+        New message from the user:
+        \(userText)
+        """
         let body = MessagesRequest(
             system: system,
-            messages: [APIMessage(role: "user", content: [.text(userText)])],
+            messages: [APIMessage(role: "user", content: [.text(content)])],
             tools: [],
             maxTokens: 400,
             stream: false
@@ -298,12 +323,26 @@ enum MemoryExtractor {
     }
 
     /// Pulls the JSON array out of the reply, tolerating code fences or stray
-    /// prose the model may wrap around it.
+    /// prose around it. Decoded element-by-element so one malformed entry
+    /// can't discard the whole batch (models occasionally emit a stray object),
+    /// and a list value like ["a","b"] is flattened rather than dropped.
     private static func parseFacts(from text: String) -> [Fact] {
         guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"), start < end else { return [] }
-        let json = String(text[start...end])
-        guard let data = json.data(using: .utf8),
-              let facts = try? JSONDecoder().decode([Fact].self, from: data) else { return [] }
-        return facts
+        guard let data = String(text[start...end]).data(using: .utf8),
+              let elements = try? JSONDecoder().decode([JSONValue].self, from: data) else { return [] }
+        return elements.compactMap { element in
+            guard let key = element["key"]?.stringValue, !key.isEmpty else { return nil }
+            let raw = element["value"]
+            let value: String?
+            if let string = raw?.stringValue {
+                value = string
+            } else if let list = raw?.arrayValue {
+                value = list.compactMap(\.stringValue).joined(separator: ", ")
+            } else {
+                value = nil
+            }
+            guard let value, !value.isEmpty else { return nil }
+            return Fact(key: key, value: value)
+        }
     }
 }
