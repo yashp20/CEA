@@ -18,7 +18,7 @@ struct ContentView: View {
                 OnboardingView()
             }
         }
-        .tint(Theme.accent(highContrast: profile.highContrast))
+        .tint(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast))
         // nil follows the system; light/dark are the user's Profile override.
         .preferredColorScheme(profile.colorSchemeOverride)
         // Cross-fade the palette instead of snapping when the user switches.

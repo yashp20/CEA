@@ -18,6 +18,7 @@ struct ResultMapView: View {
     /// first pin.
     var routeOrigin: CLLocationCoordinate2D?
     var highContrast: Bool
+    var colorBlindType: ColorBlindType? = nil
 
     @State private var route: MKRoute?
 
@@ -26,12 +27,12 @@ struct ResultMapView: View {
             Map(initialPosition: .region(region)) {
                 ForEach(pins) { pin in
                     Marker(pin.name, coordinate: pin.coordinate)
-                        .tint(Theme.accent(highContrast: highContrast))
+                        .tint(Theme.accent(for: colorBlindType, highContrast: highContrast))
                 }
                 if let route {
                     MapPolyline(route.polyline)
                         .stroke(
-                            Theme.accent(highContrast: highContrast),
+                            Theme.accent(for: colorBlindType, highContrast: highContrast),
                             style: StrokeStyle(lineWidth: highContrast ? 6 : 4, lineCap: .round)
                         )
                 }

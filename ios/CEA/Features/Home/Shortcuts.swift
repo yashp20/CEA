@@ -149,7 +149,7 @@ struct ShortcutStrip: View {
             VStack(spacing: 6) {
                 Image(systemName: shortcut.icon)
                     .font(.title3)
-                    .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                    .foregroundStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
                 Text(shortcut.title)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.primary)

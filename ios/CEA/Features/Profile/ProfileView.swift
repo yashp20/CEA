@@ -118,13 +118,13 @@ struct ProfileView: View {
                     Toggle(isOn: matchSystemBinding) {
                         Label("Match system settings", systemImage: "iphone")
                     }
-                    .tint(Theme.accent(highContrast: profile.highContrast))
+                    .tint(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast))
                     .frame(minHeight: Theme.minTapTarget - 12)
 
                     Toggle(isOn: darkModeBinding) {
                         Label("Dark Mode", systemImage: "moon.fill")
                     }
-                    .tint(Theme.accent(highContrast: profile.highContrast))
+                    .tint(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast))
                     .frame(minHeight: Theme.minTapTarget - 12)
                     // While matching the system, this shows the current state
                     // but the device owns it.
@@ -245,7 +245,7 @@ struct ProfileView: View {
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .font(.system(size: 56))
-                .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                .foregroundStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
                 .frame(width: 62, height: 62)
         }
     }
@@ -268,7 +268,7 @@ struct ProfileView: View {
         Toggle(isOn: binding) {
             Label(title, systemImage: icon)
         }
-        .tint(Theme.accent(highContrast: profileStore.profile.highContrast))
+        .tint(Theme.accent(for: profileStore.profile.colorBlindType, highContrast: profileStore.profile.highContrast))
         .frame(minHeight: Theme.minTapTarget - 12)
     }
 }

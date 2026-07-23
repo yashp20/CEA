@@ -76,7 +76,7 @@ struct RoutineRunView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(position + 1).")
                     .font(.headline.monospacedDigit())
-                    .foregroundStyle(Theme.accent(highContrast: profile.highContrast))
+                    .foregroundStyle(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast))
                 Text(step.title)
                     .font(.headline)
                 Spacer(minLength: 0)
@@ -143,7 +143,7 @@ struct RoutineRunView: View {
                     .padding(.vertical, 12)
                     .frame(minHeight: Theme.minTapTarget)
             }
-            .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+            .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
             .foregroundStyle(.white)
             .accessibilityHint(RoutineEngine.requiresConfirmation(step)
                                ? "Runs the action through your Zapier account."
@@ -179,7 +179,7 @@ struct RoutineRunView: View {
                 .padding(.vertical, 12)
                 .frame(minHeight: Theme.minTapTarget)
         }
-        .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+        .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
         .foregroundStyle(.white)
         .accessibilityLabel("\(label). Opens with your trip pre-filled; you confirm and request there.")
     }

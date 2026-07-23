@@ -100,7 +100,7 @@ struct OwnAccountConfirmCardView: View {
                         .frame(minHeight: Theme.minTapTarget)
                     }
                     .disabled(running)
-                    .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+                    .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
                     .foregroundStyle(.white)
                     .accessibilityHint("Runs the action through your Zapier account.")
                 }
@@ -162,7 +162,7 @@ struct TopThreeCardView: View {
                 PlaceOptionRow(index: index + 1, option: option, profile: profile)
             }
             if !mapPins.isEmpty {
-                ResultMapView(pins: mapPins, routeOrigin: nil, highContrast: profile.highContrast)
+                ResultMapView(pins: mapPins, routeOrigin: nil, highContrast: profile.highContrast, colorBlindType: profile.colorBlindType)
             }
         }
         .ceaCard(highContrast: profile.highContrast)
@@ -191,7 +191,7 @@ private struct PlaceOptionRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(index).")
                     .font(.headline.monospacedDigit())
-                    .foregroundStyle(Theme.accent(highContrast: profile.highContrast))
+                    .foregroundStyle(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast))
                 Text(option.name)
                     .font(.headline)
                 Spacer(minLength: 0)
@@ -309,7 +309,7 @@ struct RideConfirmCardView: View {
                     .foregroundStyle(.secondary)
             }
             if !pins.isEmpty {
-                ResultMapView(pins: pins, routeOrigin: origin, highContrast: profile.highContrast)
+                ResultMapView(pins: pins, routeOrigin: origin, highContrast: profile.highContrast, colorBlindType: profile.colorBlindType)
             }
         }
         .ceaCard(highContrast: profile.highContrast)
@@ -411,7 +411,7 @@ struct HandoffCardView: View {
             .buttonStyle(.plain)
             .background(
                 prominent
-                    ? AnyShapeStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                    ? AnyShapeStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
                     : AnyShapeStyle(Color(.tertiarySystemFill)),
                 in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4)
             )

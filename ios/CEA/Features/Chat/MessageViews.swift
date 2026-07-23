@@ -17,7 +17,7 @@ struct MessageRow: View {
                 Text(message.text)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Theme.accent(highContrast: profile.highContrast),
+                    .background(Theme.accent(for: profile.colorBlindType, highContrast: profile.highContrast),
                                 in: RoundedRectangle(cornerRadius: Theme.bubbleCornerRadius))
                     .foregroundStyle(.white)
             }

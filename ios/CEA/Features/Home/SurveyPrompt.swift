@@ -132,7 +132,7 @@ struct SurveyPromptCard: View {
                 .padding(.vertical, 10)
                 .frame(minHeight: Theme.minTapTarget)
         }
-        .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
+        .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
         .foregroundStyle(.white)
         .accessibilityLabel("\(label), \(attribute.question)")
     }

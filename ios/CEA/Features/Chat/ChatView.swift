@@ -72,6 +72,7 @@ struct ChatView: View {
                 text: $input,
                 voiceFirst: profile.voiceFirst,
                 highContrast: profile.highContrast,
+                colorBlindType: profile.colorBlindType,
                 reduceMotion: reduceMotion,
                 isSending: isSending,
                 onSend: send
@@ -96,7 +97,7 @@ struct ChatView: View {
         VStack(spacing: 8) {
             Image(systemName: "bubble.left.and.text.bubble.right")
                 .font(.largeTitle)
-                .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                .foregroundStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
                 .accessibilityHidden(true)
             Text("Ask for a ride or food nearby.")
                 .font(.headline)

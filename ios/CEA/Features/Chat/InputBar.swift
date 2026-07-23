@@ -6,6 +6,7 @@ struct InputBar: View {
     @Binding var text: String
     var voiceFirst: Bool
     var highContrast: Bool
+    var colorBlindType: ColorBlindType? = nil
     var reduceMotion: Bool
     var isSending: Bool
     var onSend: () -> Void
@@ -58,7 +59,7 @@ struct InputBar: View {
                 .background(
                     dictation.isRecording
                         ? AnyShapeStyle(Color.red)
-                        : AnyShapeStyle(Theme.brandGradient(highContrast: highContrast)),
+                        : AnyShapeStyle(Theme.brandGradient(for: colorBlindType, highContrast: highContrast)),
                     in: Circle()
                 )
                 .foregroundStyle(.white)
@@ -76,7 +77,7 @@ struct InputBar: View {
                 .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                 .background(
                     canSend
-                        ? AnyShapeStyle(Theme.accent(highContrast: highContrast))
+                        ? AnyShapeStyle(Theme.accent(for: colorBlindType, highContrast: highContrast))
                         : AnyShapeStyle(Color(.systemGray4)),
                     in: Circle()
                 )

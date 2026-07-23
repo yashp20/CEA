@@ -80,7 +80,7 @@ struct OnboardingView: View {
                 ForEach(0..<pageCount, id: \.self) { index in
                     Circle()
                         .fill(index == page
-                              ? AnyShapeStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                              ? AnyShapeStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
                               : AnyShapeStyle(Color(.systemGray4)))
                         .frame(width: index == page ? 10 : 7, height: index == page ? 10 : 7)
                 }
@@ -119,7 +119,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 12)
             .frame(minHeight: Theme.minTapTarget)
-            .background(Theme.brandGradient(highContrast: profile.highContrast), in: Capsule())
+            .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: Capsule())
             .foregroundStyle(.white)
         }
         .padding()
@@ -225,7 +225,7 @@ struct OnboardingView: View {
                     .frame(width: 66, height: 66)
                 Image(systemName: "camera.fill")
                     .font(.title3)
-                    .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                    .foregroundStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
             }
             .overlay(
                 Circle().strokeBorder(Color(.systemGray4), style: StrokeStyle(lineWidth: 1, dash: [4]))
@@ -329,7 +329,7 @@ struct OnboardingView: View {
                 .padding(12)
                 .frame(minHeight: Theme.minTapTarget)
                 .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius - 4))
-                .tint(Theme.accent(highContrast: profileStore.profile.highContrast))
+                .tint(Theme.accent(for: profileStore.profile.colorBlindType, highContrast: profileStore.profile.highContrast))
             }
         }
     }
@@ -392,6 +392,7 @@ struct ChatPreview: View {
                     text: $previewText,
                     voiceFirst: profile.voiceFirst,
                     highContrast: profile.highContrast,
+                    colorBlindType: profile.colorBlindType,
                     reduceMotion: reduceMotion,
                     isSending: false,
                     onSend: { previewText = "" }

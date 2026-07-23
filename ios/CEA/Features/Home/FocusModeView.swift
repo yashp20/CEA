@@ -75,7 +75,7 @@ struct FocusModeView: View {
                     .padding(.vertical, 20)
                     .frame(minHeight: 64)
             }
-            .background(Theme.brandGradient(highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+            .background(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast), in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
             .foregroundStyle(.white)
             .accessibilityHint(step.url != nil ? "Opens another app. CEA doesn't complete the action for you." : "Returns to the chat.")
         }

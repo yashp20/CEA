@@ -15,17 +15,39 @@ enum Theme {
     static let brandBlueHC = Color(red: 0.08, green: 0.22, blue: 0.62)
     static let brandPurpleHC = Color(red: 0.28, green: 0.10, blue: 0.55)
 
-    static func brandGradient(highContrast: Bool) -> LinearGradient {
-        LinearGradient(
-            colors: highContrast ? [brandBlueHC, brandPurpleHC] : [brandBlue, brandPurple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    static func brandGradient(for type: ColorBlindType? = nil, highContrast: Bool) -> LinearGradient {
+        let pair = brandPair(for: type, highContrast: highContrast)
+        return LinearGradient(colors: [pair.0, pair.1], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     /// Solid accent used for buttons, links, and the user bubble.
-    static func accent(highContrast: Bool) -> Color {
-        highContrast ? brandBlueHC : brandBlue
+    static func accent(for type: ColorBlindType? = nil, highContrast: Bool) -> Color {
+        brandPair(for: type, highContrast: highContrast).0
+    }
+
+    /// The brand color pair, adapted so the app's own accent is distinguishable
+    /// for the selected color-blindness subtype — a real, app-wide change, not
+    /// just status-icon tuning. Blue→purple for typical vision; a clear blue→
+    /// cyan on the safe axis for red-green subtypes (purple can read as an
+    /// ambiguous grey there); magenta→red for tritanopia (blue is unreliable);
+    /// and lightness-only monochrome for achromatopsia.
+    private static func brandPair(for type: ColorBlindType?, highContrast: Bool) -> (Color, Color) {
+        switch type {
+        case nil:
+            return highContrast ? (brandBlueHC, brandPurpleHC) : (brandBlue, brandPurple)
+        case .protanopia, .deuteranopia:
+            return highContrast
+                ? (Color(red: 0.05, green: 0.20, blue: 0.55), Color(red: 0.0, green: 0.30, blue: 0.45))
+                : (Color(red: 0.0, green: 0.45, blue: 0.90), Color(red: 0.0, green: 0.62, blue: 0.80))
+        case .tritanopia:
+            return highContrast
+                ? (Color(red: 0.60, green: 0.0, blue: 0.30), Color(red: 0.55, green: 0.10, blue: 0.10))
+                : (Color(red: 0.85, green: 0.10, blue: 0.45), Color(red: 0.80, green: 0.25, blue: 0.20))
+        case .achromatopsia:
+            return highContrast
+                ? (Color(white: 0.12), Color(white: 0.0))
+                : (Color(white: 0.32), Color(white: 0.16))
+        }
     }
 
     // MARK: Semantic status colors (color-blind-aware, v1.1 §1 bug 2)

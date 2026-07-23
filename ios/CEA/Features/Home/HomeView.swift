@@ -135,7 +135,7 @@ struct HomeView: View {
             } label: {
                 Image(systemName: "person.crop.circle")
                     .font(.title3)
-                    .foregroundStyle(Theme.brandGradient(highContrast: profile.highContrast))
+                    .foregroundStyle(Theme.brandGradient(for: profile.colorBlindType, highContrast: profile.highContrast))
             }
             .accessibilityLabel("Profile and settings")
         }
