@@ -19,6 +19,13 @@ struct ContentView: View {
             }
         }
         .tint(Theme.accent(highContrast: profile.highContrast))
+        // nil follows the system; light/dark are the user's Profile override.
+        .preferredColorScheme(profile.colorSchemeOverride)
+        // Cross-fade the palette instead of snapping when the user switches.
+        .animation(
+            Motion.themeFade(reduceMotion: EffectiveReduceMotion(system: systemReduceMotion, profile: profile.reduceMotion).isOn),
+            value: profile.appearanceRaw
+        )
         // Larger Text raises the Dynamic Type floor; the system setting can
         // always push it higher.
         .dynamicTypeSize(profile.largerText

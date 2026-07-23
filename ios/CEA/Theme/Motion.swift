@@ -20,6 +20,14 @@ enum Motion {
             : .spring(response: 0.25, dampingFraction: 0.7)
     }
 
+    /// Cross-fade for Light/Dark appearance changes. A fade is the
+    /// reduce-motion-friendly transition (Apple recommends cross-fades as the
+    /// alternative to movement), so it stays on when motion is reduced — just
+    /// quicker.
+    static func themeFade(reduceMotion: Bool) -> Animation {
+        .easeInOut(duration: reduceMotion ? 0.15 : 0.35)
+    }
+
     /// Insertion transition for chat messages and cards.
     static func insertion(reduceMotion: Bool) -> AnyTransition {
         reduceMotion

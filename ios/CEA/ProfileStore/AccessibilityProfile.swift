@@ -1,5 +1,16 @@
 import Foundation
 import SwiftData
+import SwiftUI
+
+/// App appearance. `auto` follows the system (the default, so the app respects
+/// whatever the user already set); light/dark are explicit in-app overrides.
+enum AppAppearance: String, CaseIterable, Codable, Identifiable {
+    case auto
+    case light
+    case dark
+
+    var id: String { rawValue }
+}
 
 /// Color-blindness subtype (v1.1 §1 bug 2). Stored on the profile so the
 /// palette can adapt to the specific subtype rather than a generic flag.
@@ -90,6 +101,9 @@ final class AccessibilityProfile {
     /// Profile photo, stored outside the main store file to keep it light.
     @Attribute(.externalStorage) var avatarData: Data?
 
+    /// Appearance override; defaults to following the system.
+    var appearanceRaw: String = AppAppearance.auto.rawValue
+
     // Bookkeeping
     var onboardingCompleted: Bool
     var createdAt: Date
@@ -145,6 +159,19 @@ extension AccessibilityProfile {
 
     var verbosity: VerbosityLevel {
         VerbosityLevel(rawValue: verbosityRaw) ?? .auto
+    }
+
+    var appearance: AppAppearance {
+        AppAppearance(rawValue: appearanceRaw) ?? .auto
+    }
+
+    /// Scheme to force app-wide; `nil` means follow the system.
+    var colorSchemeOverride: ColorScheme? {
+        switch appearance {
+        case .auto: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
     }
 
     /// Haptics are the primary channel for deaf/HoH profiles (v1.1 §3.3), so

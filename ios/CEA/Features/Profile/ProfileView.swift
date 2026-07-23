@@ -11,7 +11,59 @@ import UIKit
 /// it renders inside the parent NavigationStack.
 struct ProfileView: View {
     @Environment(ProfileStore.self) private var profileStore
+    /// The scheme actually in effect — so the toggle shows the true current
+    /// state while the preference is still "follow the system".
+    @Environment(\.colorScheme) private var effectiveScheme
     @State private var pickedPhoto: PhotosPickerItem?
+
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+
+    private var themeFade: Animation {
+        Motion.themeFade(
+            reduceMotion: EffectiveReduceMotion(
+                system: systemReduceMotion,
+                profile: profileStore.profile.reduceMotion
+            ).isOn
+        )
+    }
+
+    /// "Match system settings" — on means follow the device. Turning it off
+    /// freezes whatever is on screen right now, so nothing jumps at the moment
+    /// the user takes manual control.
+    private var matchSystemBinding: Binding<Bool> {
+        Binding(
+            get: { profileStore.profile.appearance == .auto },
+            set: { matchSystem in
+                withAnimation(themeFade) {
+                    profileStore.profile.appearanceRaw = matchSystem
+                        ? AppAppearance.auto.rawValue
+                        : (effectiveScheme == .dark ? AppAppearance.dark : AppAppearance.light).rawValue
+                }
+                profileStore.save()
+            }
+        )
+    }
+
+    /// Reads the effective appearance; writing it turns "auto" into an
+    /// explicit choice, which is what a user expects from flipping a switch.
+    private var darkModeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                switch profileStore.profile.appearance {
+                case .dark: return true
+                case .light: return false
+                case .auto: return effectiveScheme == .dark
+                }
+            },
+            set: { isDark in
+                withAnimation(themeFade) {
+                    profileStore.profile.appearanceRaw =
+                        (isDark ? AppAppearance.dark : AppAppearance.light).rawValue
+                }
+                profileStore.save()
+            }
+        )
+    }
 
     var body: some View {
         @Bindable var profile = profileStore.profile
@@ -60,6 +112,29 @@ struct ProfileView: View {
                     Text("You")
                 } footer: {
                     Text("Stored only on this device. CEA uses your name sparingly — just where a person naturally would.")
+                }
+
+                Section {
+                    Toggle(isOn: matchSystemBinding) {
+                        Label("Match system settings", systemImage: "iphone")
+                    }
+                    .tint(Theme.accent(highContrast: profile.highContrast))
+                    .frame(minHeight: Theme.minTapTarget - 12)
+
+                    Toggle(isOn: darkModeBinding) {
+                        Label("Dark Mode", systemImage: "moon.fill")
+                    }
+                    .tint(Theme.accent(highContrast: profile.highContrast))
+                    .frame(minHeight: Theme.minTapTarget - 12)
+                    // While matching the system, this shows the current state
+                    // but the device owns it.
+                    .disabled(profile.appearance == .auto)
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text(profile.appearance == .auto
+                         ? "CEA follows your device's Light/Dark setting. Turn this off to choose for CEA only."
+                         : "Set for CEA only, ignoring your device's Light/Dark setting.")
                 }
 
                 Section {
